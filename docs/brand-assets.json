@@ -1,0 +1,11 @@
+{
+  "source": "Brand assets supplied by the user in the project root",
+  "paletteExtractedFromPixels": { "navy": "#0A2762", "orange": "#FE8700" },
+  "assets": [
+    { "sourceFile": "Logo light.png", "publicAlias": "shs-light.png", "width": 1367, "height": 975, "visibleBounds": [200, 215, 1175, 759], "svgViewBox": "200 215 975 544", "background": "light", "use": "sidebar" },
+    { "sourceFile": "Logo dark.png", "publicAlias": "shs-dark.png", "width": 1367, "height": 975, "visibleBounds": [200, 216, 1175, 760], "svgViewBox": "200 216 975 544", "background": "dark", "use": "dark-background brand placement only" },
+    { "sourceFile": "Logo n slogan.png", "publicAlias": "shs-slogan.png", "width": 2802, "height": 975, "visibleBounds": [200, 220, 2591, 755], "svgViewBox": "200 220 2391 535", "background": "light", "use": "dashboard introduction when legible" },
+    { "sourceFile": "silk.png", "publicAlias": "shs-silk.png", "width": 943, "height": 1114, "visibleBounds": [22, 26, 919, 1107], "svgViewBox": "22 26 897 1081", "background": "light", "use": "single restrained dashboard accent" }
+  ],
+  "rules": ["Preserve original files", "Preserve aspect ratio", "Do not recolor or redraw", "Crop transparent padding in the display wrapper only", "Do not place white-wordmark logo on white background"]
+}

@@ -1,0 +1,23 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+*.tsbuildinfo
+
+.npm-cache/
+
+# Local settings and credentials
+.env
+.env.*
+!.env.example
+.vercel/
+*.log
+.DS_Store
+Thumbs.db
+~$*
+
+# Generated visual verification outputs
+screenshots/
+docs/_qa/
+coverage/
+__pycache__/
