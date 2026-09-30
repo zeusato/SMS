@@ -54,7 +54,6 @@ import {
   customerGroupOptions,
   groupLabel,
   journeyLabel,
-  categorySupportsJourney,
   serviceGroups,
   catalogAvailable,
 } from "./taxonomy";
@@ -246,19 +245,7 @@ export function Builder() {
                 <Choice
                   label="Hành trình khách hàng *"
                   value={config.journey}
-                  onChange={(journey) =>
-                    patch({
-                      journey,
-                      category: store.state.categories.some(
-                        (c) =>
-                          c.id === config.category &&
-                          c.active &&
-                          categorySupportsJourney(c, journey),
-                      )
-                        ? config.category
-                        : "",
-                    })
-                  }
+                  onChange={(journey) => patch({ journey })}
                   options={[
                     ["", "Chọn bước hành trình…"],
                     ...journeys.map(
@@ -278,11 +265,7 @@ export function Builder() {
                         : "Chọn hành trình trước",
                     ],
                     ...store.state.categories
-                      .filter(
-                        (c) =>
-                          c.active &&
-                          categorySupportsJourney(c, config.journey),
-                      )
+                      .filter((c) => c.active && !!config.journey)
                       .map((c) => [c.id, c.name] as [string, string]),
                   ]}
                 />

@@ -22,7 +22,7 @@ import {
 } from "./domain";
 import { seed } from "./seed";
 import { migrateState } from "./migration";
-import { catalogAvailable, categorySupportsJourney } from "./taxonomy";
+import { catalogAvailable } from "./taxonomy";
 import { transaction } from "./transaction";
 const KEY = "sms.mock.v1";
 type Store = {
@@ -179,12 +179,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (errors.length) throw new Error(errors.join(" · "));
       if (!s.categories.some((x) => x.id === c.category && x.active))
         throw new Error("Danh mục đã ngừng sử dụng");
-      if (
-        !s.categories.some(
-          (x) => x.id === c.category && categorySupportsJourney(x, c.journey),
-        )
-      )
-        throw new Error("Danh mục không thuộc bước hành trình đã chọn");
       for (const a of c.actions)
         if (a.type === "offer" || a.type === "service_offer")
           for (const p of a.type === "offer" ? a.products : a.services || []) {

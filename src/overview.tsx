@@ -16,11 +16,11 @@ import {
   Bookmark20Regular,
 } from "@fluentui/react-icons";
 import { useStore } from "./store";
+import { groupTasks } from "./task-groups";
 import {
   journeys,
   customerGroupOptions,
   appliesToGroup,
-  categorySupportsJourney,
   groupLabel,
   journeyLabel,
   serviceGroups,
@@ -86,7 +86,9 @@ export function Overview() {
       (t) =>
         t.status !== "completed" && Date.parse(t.due) < Date.parse(state.now),
     ),
-    failed = acts.filter((a) => activationStatus(a) === "failed");
+    failed = acts
+      .filter((a) => activationStatus(a) === "failed")
+      .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   const findings = conflicts(state).filter((f) => !f.review);
   const trend = Array.from({ length: Number(period) }, (_, i) => {
     const d = addDays(state.now, -Number(period) + i + 1).slice(0, 10);
@@ -237,53 +239,45 @@ export function Overview() {
             aria-labelledby={`journey-${journey}`}
           >
             <div className="category-grid">
-              {state.categories
-                .filter(
-                  (cat) =>
-                    categorySupportsJourney(cat, journey) ||
-                    journeyScenarios.some(
-                      (s) => getConfig(s).category === cat.id,
-                    ),
-                )
-                .map((cat, i) => {
-                  const items = journeyScenarios.filter(
-                      (s) => getConfig(s)?.category === cat.id,
-                    ),
-                    n = items.filter(
-                      (s) => status(s, state.now) === "active",
-                    ).length;
-                  const Icon = catIcons[i % 6];
-                  return (
-                    <div className="category-card" key={cat.id}>
-                      <div className="category-top">
-                        <span className={`category-icon tone-${i}`}>
-                          <Icon />
-                        </span>
-                        <Link
-                          className="category-name"
-                          aria-label={`Xem danh mục ${cat.name}`}
-                          to={categoryLink(cat.id)}
-                        >
-                          {cat.name}
-                        </Link>
-                      </div>
-                      <p>{cat.description}</p>
-                      <div className="category-bottom">
-                        <Link to={categoryLink(cat.id)}>
-                          <b>{items.length.toString().padStart(2, "0")}</b>
-                          <span>kịch bản</span>
-                        </Link>
-                        <Link
-                          className="active-count"
-                          to={categoryLink(cat.id, true)}
-                        >
-                          <i />
-                          {n} đang hoạt động
-                        </Link>
-                      </div>
+              {state.categories.map((cat, i) => {
+                const items = journeyScenarios.filter(
+                    (s) => getConfig(s)?.category === cat.id,
+                  ),
+                  n = items.filter(
+                    (s) => status(s, state.now) === "active",
+                  ).length;
+                const Icon = catIcons[i % 6];
+                return (
+                  <div className="category-card" key={cat.id}>
+                    <div className="category-top">
+                      <span className={`category-icon tone-${i}`}>
+                        <Icon />
+                      </span>
+                      <Link
+                        className="category-name"
+                        aria-label={`Xem danh mục ${cat.name}`}
+                        to={categoryLink(cat.id)}
+                      >
+                        {cat.name}
+                      </Link>
                     </div>
-                  );
-                })}
+                    <p>{cat.description}</p>
+                    <div className="category-bottom">
+                      <Link to={categoryLink(cat.id)}>
+                        <b>{items.length.toString().padStart(2, "0")}</b>
+                        <span>kịch bản</span>
+                      </Link>
+                      <Link
+                        className="active-count"
+                        to={categoryLink(cat.id, true)}
+                      >
+                        <i />
+                        {n} đang hoạt động
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </Panel>
@@ -299,48 +293,74 @@ export function Overview() {
               cần xử lý
             </span>
           </div>
-          {findings.slice(0, 2).map((f) => (
-            <Link
-              className="attention-item"
-              key={f.id}
-              to={`/conflicts/${f.id}`}
-            >
-              <span className="mini-icon orange">
-                <Warning20Regular />
-              </span>
-              <div>
-                <b>{f.kind}</b>
-                <p>{getConfig(f.a).name}</p>
-                <small>{f.sample.length} khách hàng mẫu giao nhau</small>
-              </div>
-              <ArrowRight20Regular />
-            </Link>
-          ))}
-          {failed.length > 0 && (
-            <Link
-              className="attention-item"
-              to={`/activations/${failed[0].id}`}
-            >
-              <span className="mini-icon red">!</span>
-              <div>
-                <b>{failed.length} lượt có hành động thất bại</b>
-                <p>Kiểm tra kết quả và thử lại</p>
-                <small>Thông báo mô phỏng</small>
-              </div>
-              <ArrowRight20Regular />
-            </Link>
-          )}
-          {overdue.length > 0 && (
-            <Link className="attention-item" to="/tasks?status=overdue">
-              <span className="mini-icon blue">↗</span>
-              <div>
-                <b>{overdue.length} công việc quá hạn</b>
-                <p>Cần cập nhật tiến độ xử lý</p>
-                <small>Đi tới bàn làm việc</small>
-              </div>
-              <ArrowRight20Regular />
-            </Link>
-          )}
+          <details className="attention-group" open>
+            <summary>
+              Xung đột kịch bản <span>{findings.length}</span>
+            </summary>
+            {findings.slice(0, 2).map((f) => (
+              <Link
+                className="attention-item"
+                key={f.id}
+                to={`/conflicts/${f.id}`}
+              >
+                <span className="mini-icon orange">
+                  <Warning20Regular />
+                </span>
+                <div>
+                  <b>{f.kind}</b>
+                  <p>{getConfig(f.a).name}</p>
+                  <small>{f.sample.length} khách hàng mẫu giao nhau</small>
+                </div>
+                <ArrowRight20Regular />
+              </Link>
+            ))}
+            {!findings.length && (
+              <p className="hint">Không có xung đột cần rà soát.</p>
+            )}
+            {findings.length > 2 && (
+              <Link className="attention-more" to="/scenarios?conflict=1">
+                Xem các kịch bản có cảnh báo <ArrowRight20Regular />
+              </Link>
+            )}
+          </details>
+          <details className="attention-group" open>
+            <summary>
+              Lỗi thực thi <span>{failed.length}</span>
+            </summary>
+            {failed.length > 0 && (
+              <Link
+                className="attention-item"
+                to={`/activations/${failed[0].id}`}
+              >
+                <span className="mini-icon red">!</span>
+                <div>
+                  <b>{failed.length} lượt có hành động thất bại</b>
+                  <p>Xem lượt lỗi gần nhất và thử lại</p>
+                  <small>Thông báo mô phỏng</small>
+                </div>
+                <ArrowRight20Regular />
+              </Link>
+            )}
+            {!failed.length && (
+              <p className="hint">Không có lượt lỗi trong kỳ.</p>
+            )}
+          </details>
+          <details className="attention-group" open>
+            <summary>
+              Công việc quá hạn <span>{overdue.length}</span>
+            </summary>
+            {groupTasks(state, overdue).map((group) => (
+              <Link
+                key={group.id}
+                className="attention-task-group"
+                to={`/tasks?status=overdue&category=${group.id}`}
+              >
+                <span>{group.name}</span>
+                <b>{group.tasks.length}</b>
+                <ArrowRight20Regular />
+              </Link>
+            ))}
+          </details>
           <div className="attention-footer">
             <ShieldCheckmark24Regular />
             <p>

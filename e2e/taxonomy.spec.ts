@@ -18,6 +18,30 @@ test("dashboard counts and drilldowns follow customer file and journey", async (
     "4Investing6",
     "5Wealth6",
   ]);
+  for (const name of [
+    "1 Onboarding 5",
+    "2 Cash in 3",
+    "3 Trading 4",
+    "4 Investing 6",
+    "5 Wealth 6",
+  ]) {
+    await page.getByRole("tab", { name, exact: true }).click();
+    await expect(
+      page.getByRole("tabpanel").getByRole("link", { name: /^Xem danh mục / }),
+    ).toHaveCount(6);
+  }
+  await page.getByRole("tab", { name: "1 Onboarding 5", exact: true }).click();
+  const emptyCategory = page
+    .locator(".category-card")
+    .filter({
+      has: page.getByRole("link", { name: "Xem danh mục Tư vấn & giải pháp" }),
+    });
+  await expect(
+    emptyCategory.getByRole("link", { name: "00 kịch bản", exact: true }),
+  ).toBeVisible();
+  await expect(
+    emptyCategory.getByRole("link", { name: "0 đang hoạt động", exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("combobox", { name: "Tệp khách hàng", exact: true })
     .selectOption("careby");
@@ -40,7 +64,7 @@ test("dashboard counts and drilldowns follow customer file and journey", async (
   await expect(page.locator("tbody")).toContainText("SMS-0014");
 });
 
-test("requires journey and file, clears incompatible categories and persists service offers", async ({
+test("requires journey and file, keeps all categories across journeys and persists service offers", async ({
   page,
 }) => {
   await page.goto("/scenarios/new");
@@ -68,10 +92,12 @@ test("requires journey and file, clears incompatible categories and persists ser
     .selectOption("wealth");
   await expect(
     page.getByRole("combobox", { name: "Danh mục kịch bản *", exact: true }),
-  ).toHaveValue("");
-  await page
-    .getByRole("combobox", { name: "Danh mục kịch bản *", exact: true })
-    .selectOption("TV");
+  ).toHaveValue("DV");
+  await expect(
+    page
+      .getByRole("combobox", { name: "Danh mục kịch bản *", exact: true })
+      .getByRole("option"),
+  ).toHaveCount(7);
   await page.getByRole("button", { name: "Tiếp tục", exact: true }).click();
   await page
     .getByRole("button", { name: "Dùng công thức trình diễn", exact: true })

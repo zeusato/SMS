@@ -40,7 +40,8 @@ Có thể xem bản build trên máy bằng `npm run build` rồi `npm run previ
 
 ## Có thể trình diễn
 
-- Dashboard có 5 tab hành trình Onboarding / Cash in / Trading / Investing / Wealth, danh mục và số đếm theo hành trình, lọc tệp khách hàng mặc định Tất cả. Bấm số đếm mở danh sách với cùng bộ lọc.
+- Dashboard có 5 tab hành trình Onboarding / Cash in / Trading / Investing / Wealth. Mỗi tab luôn hiện đủ 6 nhóm kịch bản, nhóm trống hiện 0; số đếm theo hành trình và tệp khách hàng (mặc định Tất cả). Bấm số đếm mở danh sách với cùng bộ lọc.
+- Cần chú ý tách xung đột, lỗi thực thi và công việc quá hạn. Danh sách công việc có bộ lọc, tiêu đề và số đếm theo nhóm kịch bản, kết hợp trạng thái và phân trang; nhóm được xác định theo phiên bản tạo công việc.
 - Quản lý kịch bản: tìm kiếm, lọc đa chiều, lưu chế độ xem theo vai trò, lịch sử và phân trang.
 - 5 màn thiết lập độc lập: thông tin → điều kiện → kích hoạt → hành động → hiệu lực và hậu xử lý. Bước 1 bắt buộc chọn tệp khách hàng và hành trình trước danh mục. Review nằm trong ngăn bên phải của bước 5.
 - Công xưởng điều kiện: 45 đại lượng thuộc 8 nhóm, nhóm VÀ/HOẶC, biểu thức số học, cấp khách hàng/tài khoản, xem thử và giải thích từng đối tượng.
@@ -49,7 +50,7 @@ Có thể xem bản build trên máy bằng `npm run build` rồi `npm run previ
 - Công bố tạo phiên bản và AutomationPlan có nguồn kích hoạt, nodes/edges, cấu hình bất biến và sơ đồ tương tác. Trình mô phỏng đọc cấu hình của plan được công bố.
 - Nhật ký đánh giá/kích hoạt, snapshot, chống trùng, tái kích hoạt, thử lại hành động lỗi, công việc từng lần và báo cáo theo kỳ.
 - Sửa tạo nháp mới bên cạnh phiên bản hiện hành. Admin xóa có lý do và tombstone; lịch sử không bị xóa theo.
-- Danh mục kịch bản, sản phẩm chính sách, dịch vụ và bộ sản phẩm có tạo/sửa/ngừng sử dụng. Có thể cấu hình danh mục thuộc một hoặc nhiều hành trình. Thư viện đại lượng/sự kiện/hành động hiện dùng định nghĩa cố định.
+- Danh mục kịch bản, sản phẩm chính sách, dịch vụ và bộ sản phẩm có tạo/sửa/ngừng sử dụng. Các nhóm kịch bản dùng chung cho cả 5 hành trình; đổi hành trình giữ lựa chọn danh mục. Thư viện đại lượng/sự kiện/hành động hiện dùng định nghĩa cố định.
 
 ## Tệp khách hàng và dịch vụ
 
@@ -82,7 +83,7 @@ npm test
 
 `src/domain.ts`: mô hình, evaluator, lịch, compiler và mô phỏng. `seed.ts`: dữ liệu cố định. `store.tsx`/`transaction.ts`: lưu trạng thái nguyên tử. `builder.tsx`/`conditions.tsx`: wizard và email. `operations.tsx`: vận hành và danh mục. `overview.tsx`: dashboard/quản lý. `public/brand`: bản sao nguyên gốc asset. `screenshots`: ảnh kiểm tra giao diện.
 
-Có 10 kiểm thử UI trong `e2e/` và cấu hình Playwright để chạy lại bằng `npm run test:e2e` sau khi cài browser của Playwright (`npx playwright install chromium`). Kiểm tra ngày 30/09/2026 đã chạy bằng Chrome cài sẵn; kết quả và phạm vi ở QA.md. Unit suite tách riêng với `vitest.config.ts`.
+Có 12 kiểm thử UI trong `e2e/` và cấu hình Playwright để chạy lại bằng `npm run test:e2e` sau khi cài browser của Playwright (`npx playwright install chromium`). Kiểm tra ngày 30/09/2026 đã chạy bằng Chrome cài sẵn; kết quả và phạm vi ở QA.md. Unit suite tách riêng với `vitest.config.ts`.
 
 ## Ranh giới bản demo
 
@@ -94,4 +95,4 @@ Quyền là persona trình diễn, chưa phải xác thực/phân quyền server
 
 Namespace localStorage: `sms.mock.v1`. Reset chỉ thay namespace này. Có xuất JSON qua Công cụ trình diễn; nhập JSON chưa thuộc luồng UI. Lưu/publish thất bại không commit trạng thái một phần; bản nháp còn trong bộ nhớ và có nút xuất bản nháp. Giữ nguyên Excel nguồn, brand assets gốc và bộ tài liệu dự án.
 
-Bản lưu trước khi có hành trình/tệp được bổ sung khi đọc: tệp mặc định Tất cả, hành trình mặc định là bước đầu tiên được danh mục hỗ trợ; có thể sửa lại tại bước 1. Công thức nháp và lịch sử vẫn giữ nguyên. Dịch vụ tư vấn cũ chuyển sang thư viện dịch vụ, giữ mã và trạng thái; offer cũ chứa cả sản phẩm và dịch vụ được tách thành hai hành động liên tiếp. Vì giữ mục tư vấn cũ, bản lưu nâng cấp có thể có thêm một dịch vụ ngừng sử dụng so với 12 dịch vụ mới.
+Bản lưu trước khi có hành trình/tệp được bổ sung khi đọc: tệp mặc định Tất cả, hành trình được suy ra từ cấu hình danh mục cũ; có thể sửa lại tại bước 1. Cấu hình cũ không giới hạn nhóm kịch bản trong từng hành trình. Công thức nháp và lịch sử vẫn giữ nguyên. Dịch vụ tư vấn cũ chuyển sang thư viện dịch vụ, giữ mã và trạng thái; offer cũ chứa cả sản phẩm và dịch vụ được tách thành hai hành động liên tiếp. Vì giữ mục tư vấn cũ, bản lưu nâng cấp có thể có thêm một dịch vụ ngừng sử dụng so với 12 dịch vụ mới.

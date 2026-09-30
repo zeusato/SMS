@@ -48,7 +48,7 @@ export function withDemoHistory(customer: Customer, index: number): Customer {
   }
   return { ...customer, values };
 }
-import { categoryJourneys, customerGroups, defaultServices } from "./taxonomy";
+import { customerGroups, defaultServices } from "./taxonomy";
 
 export function seed(): State {
   return withSeedIds(buildSeed);
@@ -70,7 +70,6 @@ function buildSeed(): State {
     name,
     description,
     active: true,
-    journeys: categoryJourneys[id],
   }));
   const customers: Customer[] = Array.from({ length: 120 }, (_, k) => {
     const i = k + 1,

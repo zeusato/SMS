@@ -2355,6 +2355,82 @@
   gap: 8px;
   margin: 20px 0;
 }
+.task-group-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+.task-group-filters button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dce4ef;
+  border-radius: 6px;
+  color: #526784;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+}
+.task-group-filters button.selected {
+  border-color: #0a2762;
+  background: #edf2fc;
+  color: #0a2762;
+}
+.task-group-filters b {
+  font-size: 18px;
+}
+.task-group-heading th {
+  padding: 13px 16px;
+  background: #edf2f8;
+  color: #0a2762;
+}
+.task-group-heading span {
+  margin-left: 12px;
+  color: #61748d;
+  font-size: 12px;
+  font-weight: 400;
+}
+.attention-group {
+  border-top: 1px solid #e7ecf3;
+  padding: 13px 0;
+}
+.attention-group summary {
+  cursor: pointer;
+  color: #0a2762;
+  font-weight: 600;
+  font-size: 13px;
+}
+.attention-group summary > span {
+  float: right;
+  background: #eef2f8;
+  border-radius: 4px;
+  padding: 0 7px;
+}
+.attention-group .attention-item:last-child {
+  border-bottom: 0;
+}
+.attention-group .hint {
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+.attention-more,
+.attention-task-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #526784;
+  font-size: 12px;
+  padding-top: 12px;
+}
+.attention-task-group span {
+  flex: 1;
+}
+.attention-task-group b {
+  color: #0a2762;
+}
 @media (max-width: 700px) {
   .journey-panel-actions {
     flex-wrap: wrap;

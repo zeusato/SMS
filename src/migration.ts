@@ -1,6 +1,5 @@
 import type { Action, Config, State } from "./domain";
 import {
-  categoryStages,
   customerGroups,
   defaultServices,
   journeys,
@@ -17,20 +16,22 @@ export function migrateState(state: State): State {
       state.services.push({ ...service, group: serviceGroups[0] });
   const serviceIds = new Set(legacyServices.map((s) => s.id));
   state.products = state.products.filter((p) => !serviceIds.has(p.id));
-  state.categories.forEach((category) => {
-    category.journeys ??= [...categoryStages(category)];
-  });
+  // Retain the original inference for saves predating scenario journeys.
+  // Category journey metadata no longer restricts creation or visibility.
+  const legacyJourney: Record<string, string> = {
+    DV: "onboarding",
+    HD: "onboarding",
+    TT: "trading",
+    GS: "cash_in",
+    TV: "investing",
+    QH: "onboarding",
+  };
   function config(c: Config) {
     c.customerGroup ??= "all";
     c.journey ??=
-      categoryStages(
-        state.categories.find((cat) => cat.id === c.category) ?? {
-          id: c.category,
-          name: "",
-          description: "",
-          active: true,
-        },
-      )[0] ?? journeys[0][0];
+      state.categories.find((cat) => cat.id === c.category)?.journeys?.[0] ??
+      legacyJourney[c.category] ??
+      journeys[0][0];
     c.actions = c.actions.flatMap((action): Action[] => {
       action.services ??= [];
       if (action.type !== "offer") return [action];

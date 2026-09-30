@@ -53,9 +53,8 @@ import {
 } from "./ui";
 import { ConfigSummary } from "./builder";
 import { Trace } from "./conditions";
+import { groupTasks, matchesTaskStatus } from "./task-groups";
 import {
-  journeys,
-  categoryStages,
   customerGroups,
   serviceGroups,
   journeyLabel,
@@ -1087,18 +1086,37 @@ export function Tasks() {
     [outcome, setOutcome] = useState("");
   const [taskPage, setTaskPage] = useState(1);
   const filter = params.get("status") || "all",
+    category = params.get("category") || "all",
     task = state.tasks.find((t) => t.id === params.get("taskId")),
     batch = state.batches.find((b) => b.id === params.get("batchId"));
-  const list = state.tasks.filter(
+  const scopedTasks = state.tasks.filter(
     (t) =>
       (!params.get("scenario") || t.scenarioId === params.get("scenario")) &&
-      normalize(t.title + " " + t.owner).includes(normalize(query)) &&
-      (filter === "all" || filter === "overdue"
-        ? filter !== "overdue" ||
-          (t.status !== "completed" &&
-            Date.parse(t.due) < Date.parse(state.now))
-        : t.status === filter),
+      normalize(t.title + " " + t.owner).includes(normalize(query)),
   );
+  const scopedGroups = groupTasks(state, scopedTasks);
+  const groups = scopedGroups.map((group) => ({
+    ...group,
+    tasks: group.tasks.filter((t) => matchesTaskStatus(t, filter, state.now)),
+  }));
+  const selectedGroups = groups.filter(
+    (g) => category === "all" || g.id === category,
+  );
+  const list = selectedGroups.flatMap((g) => g.tasks);
+  const pages = Math.max(1, Math.ceil(list.length / 20));
+  const page = Math.min(taskPage, pages);
+  const pageTaskIds = new Set(
+    list.slice((page - 1) * 20, page * 20).map((t) => t.id),
+  );
+  const selectFilter = (key: string, value: string) => {
+    setTaskPage(1);
+    setParams((previous) => {
+      previous.set(key, value);
+      previous.delete("taskId");
+      previous.delete("batchId");
+      return previous;
+    });
+  };
   return (
     <>
       <Header
@@ -1117,28 +1135,50 @@ export function Tasks() {
           <button
             key={id}
             className={filter === id ? "selected" : ""}
-            onClick={() => {
-              setTaskPage(1);
-              setParams({ status: id });
-            }}
+            onClick={() => selectFilter("status", id)}
           >
             {label}
             <span>
               {
-                state.tasks.filter((t) =>
-                  id === "all" || id === "overdue"
-                    ? id !== "overdue" ||
-                      (t.status !== "completed" &&
-                        Date.parse(t.due) < Date.parse(state.now))
-                    : t.status === id,
-                ).length
+                scopedGroups
+                  .filter(
+                    (group) => category === "all" || group.id === category,
+                  )
+                  .flatMap((group) => group.tasks)
+                  .filter((t) => matchesTaskStatus(t, id, state.now)).length
               }
             </span>
           </button>
         ))}
       </div>
+      <div
+        className="task-group-filters"
+        role="group"
+        aria-label="Nhóm công việc"
+      >
+        <button
+          className={category === "all" ? "selected" : ""}
+          aria-pressed={category === "all"}
+          onClick={() => selectFilter("category", "all")}
+        >
+          <span>Tất cả nhóm</span>
+          <b>{groups.reduce((sum, group) => sum + group.tasks.length, 0)}</b>
+        </button>
+        {groups.map((group) => (
+          <button
+            key={group.id}
+            className={category === group.id ? "selected" : ""}
+            aria-pressed={category === group.id}
+            onClick={() => selectFilter("category", group.id)}
+          >
+            <span>{group.name}</span>
+            <b>{group.tasks.length}</b>
+          </button>
+        ))}
+      </div>
       <Panel
         title="Danh sách công việc"
+        sub="Phân nhóm theo danh mục của kịch bản tạo công việc."
         action={
           <Text
             label="Tìm công việc"
@@ -1161,64 +1201,72 @@ export function Tasks() {
                 <th>Trạng thái</th>
               </tr>
             </thead>
-            <tbody>
-              {list.slice((taskPage - 1) * 20, taskPage * 20).map((t) => (
-                <tr key={t.id}>
-                  <td>
-                    <button
-                      className="text-button"
-                      onClick={() => {
-                        setOutcome(t.outcome);
-                        setParams((p) => {
-                          p.set("taskId", t.id);
-                          return p;
-                        });
-                      }}
-                    >
-                      {t.title}
-                    </button>
-                    <small>{t.id}</small>
-                  </td>
-                  <td>
-                    <Link to={`/scenarios/${t.scenarioId}`}>
-                      {t.scenarioId}
-                    </Link>
-                  </td>
-                  <td>{t.owner}</td>
-                  <td
-                    className={
-                      t.status !== "completed" &&
-                      Date.parse(t.due) < Date.parse(state.now)
-                        ? "danger-text"
-                        : ""
-                    }
-                  >
-                    {date(t.due)}
-                  </td>
-                  <td>
-                    <Badge value={t.status} />
-                  </td>
-                </tr>
+            {selectedGroups
+              .filter((group) => group.tasks.some((t) => pageTaskIds.has(t.id)))
+              .map((group) => (
+                <tbody key={group.id} aria-label={group.name}>
+                  <tr className="task-group-heading">
+                    <th colSpan={5} scope="rowgroup">
+                      {group.name}
+                      <span>{group.tasks.length} công việc</span>
+                    </th>
+                  </tr>
+                  {group.tasks
+                    .filter((t) => pageTaskIds.has(t.id))
+                    .map((t) => (
+                      <tr key={t.id}>
+                        <td>
+                          <button
+                            className="text-button"
+                            onClick={() => {
+                              setOutcome(t.outcome);
+                              setParams((p) => {
+                                p.set("taskId", t.id);
+                                return p;
+                              });
+                            }}
+                          >
+                            {t.title}
+                          </button>
+                          <small>{t.id}</small>
+                        </td>
+                        <td>
+                          <Link to={`/scenarios/${t.scenarioId}`}>
+                            {t.scenarioId}
+                          </Link>
+                        </td>
+                        <td>{t.owner}</td>
+                        <td
+                          className={
+                            t.status !== "completed" &&
+                            Date.parse(t.due) < Date.parse(state.now)
+                              ? "danger-text"
+                              : ""
+                          }
+                        >
+                          {date(t.due)}
+                        </td>
+                        <td>
+                          <Badge value={t.status} />
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
               ))}
-            </tbody>
           </table>
         </div>
         {!list.length && <Empty title="Không có công việc phù hợp" />}
         <div className="table-footer">
           <span>
-            {list.length} công việc · Trang {taskPage}/
-            {Math.max(1, Math.ceil(list.length / 20))}
+            {list.length} công việc · Trang {page}/{pages}
           </span>
           <div>
-            <Button
-              disabled={taskPage === 1}
-              onClick={() => setTaskPage(taskPage - 1)}
-            >
+            <Button disabled={page === 1} onClick={() => setTaskPage(page - 1)}>
               Trang trước
             </Button>
             <Button
-              disabled={taskPage >= Math.ceil(list.length / 20)}
-              onClick={() => setTaskPage(taskPage + 1)}
+              disabled={page >= pages}
+              onClick={() => setTaskPage(page + 1)}
             >
               Trang sau
             </Button>
@@ -1622,7 +1670,6 @@ export function Catalogs() {
                     : kind === "services"
                       ? serviceGroups[0]
                       : undefined,
-                journeys: kind === "categories" ? ["onboarding"] : undefined,
               })
             }
           >
@@ -1702,7 +1749,7 @@ export function Catalogs() {
                     <td>{x.description}</td>
                     <td>
                       {kind === "categories"
-                        ? categoryStages(x).map(journeyLabel).join(" · ")
+                        ? "Tất cả 5 giai đoạn"
                         : "group" in x
                           ? String(x.group || "—")
                           : "—"}
@@ -1744,7 +1791,6 @@ export function Catalogs() {
               appearance="primary"
               disabled={
                 !item?.name.trim() ||
-                (kind === "categories" && !item?.journeys?.length) ||
                 (kind === "services" &&
                   !serviceGroups.includes(item?.group || ""))
               }
@@ -1787,14 +1833,10 @@ export function Catalogs() {
               onChange={(description) => setItem({ ...item, description })}
             />
             {kind === "categories" && (
-              <Checks
-                label="Thuộc hành trình khách hàng *"
-                values={item.journeys || categoryStages(item)}
-                onChange={(selected) =>
-                  setItem({ ...item, journeys: selected })
-                }
-                options={journeys.map(([id, label]) => [id, label])}
-              />
+              <p className="hint">
+                Nhóm kịch bản hiển thị trong cả 5 giai đoạn hành trình, kể cả
+                khi chưa có kịch bản.
+              </p>
             )}
             {kind === "services" && (
               <>

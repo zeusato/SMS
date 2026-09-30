@@ -19,7 +19,6 @@ import { migrateState } from "./migration";
 import {
   appliesToGroup,
   catalogAvailable,
-  categorySupportsJourney,
   customerGroups,
   journeys,
   serviceGroups,
@@ -83,12 +82,8 @@ describe("journeys, customer groups and service offers", () => {
     ).toEqual([5, 3, 4, 6, 6]);
     for (const scenario of s.scenarios) {
       const c = getConfig(scenario);
-      expect(
-        categorySupportsJourney(
-          s.categories.find((x) => x.id === c.category)!,
-          c.journey,
-        ),
-      ).toBe(true);
+      expect(s.categories.some((x) => x.id === c.category)).toBe(true);
+      expect(journeys.some(([id]) => id === c.journey)).toBe(true);
     }
     expect(
       serviceGroups.map(

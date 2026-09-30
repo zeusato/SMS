@@ -42,22 +42,6 @@ export const groupLabel = (id: string) =>
   customerGroupOptions.find((g) => g[0] === id)?.[1] || "Chưa chọn";
 export const journeyLabel = (id: string) =>
   journeys.find((j) => j[0] === id)?.[1] || "Chưa chọn";
-export const categoryJourneys: Record<string, string[]> = {
-  DV: ["onboarding", "cash_in", "trading"],
-  HD: ["onboarding", "investing"],
-  TT: ["trading", "investing"],
-  GS: ["cash_in", "trading", "investing", "wealth"],
-  TV: ["investing", "wealth"],
-  QH: ["onboarding", "wealth"],
-};
-export const categoryStages = (category: CatalogItem) =>
-  category.journeys ??
-  categoryJourneys[category.id] ??
-  journeys.map((j) => j[0]);
-export const categorySupportsJourney = (
-  category: CatalogItem,
-  journey: string,
-) => categoryStages(category).includes(journey);
 export const matchesCustomerGroup = (customer: Customer, group: string) =>
   group === "all" || customer.groupId === group;
 export const appliesToGroup = (config: Config, group: string) =>
