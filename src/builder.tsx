@@ -49,6 +49,15 @@ import {
 } from "./ui";
 import { Conditions } from "./conditions";
 import { EmailDocument } from "./EmailDocument";
+import {
+  journeys,
+  customerGroupOptions,
+  groupLabel,
+  journeyLabel,
+  categorySupportsJourney,
+  serviceGroups,
+  catalogAvailable,
+} from "./taxonomy";
 const steps = [
   ["basics", "Thông tin chung", "Định danh & mục tiêu"],
   ["conditions", "Điều kiện thỏa mãn", "Đối tượng nào phù hợp?"],
@@ -225,12 +234,57 @@ export function Builder() {
                   />
                 </div>
                 <Choice
+                  label="Tệp khách hàng áp dụng *"
+                  value={config.customerGroup}
+                  onChange={(customerGroup) => patch({ customerGroup })}
+                  options={[
+                    ["", "Chọn tệp khách hàng…"],
+                    ...customerGroupOptions,
+                  ]}
+                  hint="Chỉ khách hàng thuộc tệp này được xét điều kiện và kích hoạt kịch bản."
+                />
+                <Choice
+                  label="Hành trình khách hàng *"
+                  value={config.journey}
+                  onChange={(journey) =>
+                    patch({
+                      journey,
+                      category: store.state.categories.some(
+                        (c) =>
+                          c.id === config.category &&
+                          c.active &&
+                          categorySupportsJourney(c, journey),
+                      )
+                        ? config.category
+                        : "",
+                    })
+                  }
+                  options={[
+                    ["", "Chọn bước hành trình…"],
+                    ...journeys.map(
+                      ([id, label]) => [id, label] as [string, string],
+                    ),
+                  ]}
+                />
+                <Choice
                   label="Danh mục kịch bản *"
                   value={config.category}
                   onChange={(category) => patch({ category })}
-                  options={store.state.categories
-                    .filter((c) => c.active)
-                    .map((c) => [c.id, c.name])}
+                  options={[
+                    [
+                      "",
+                      config.journey
+                        ? "Chọn danh mục…"
+                        : "Chọn hành trình trước",
+                    ],
+                    ...store.state.categories
+                      .filter(
+                        (c) =>
+                          c.active &&
+                          categorySupportsJourney(c, config.journey),
+                      )
+                      .map((c) => [c.id, c.name] as [string, string]),
+                  ]}
                 />
                 <Text
                   label="Mã kịch bản"
@@ -403,6 +457,7 @@ export function Builder() {
   );
 }
 export function ConfigSummary({ config: c }: { config: Config }) {
+  const { state } = useStore();
   return (
     <div className="config-summary">
       <div>
@@ -410,6 +465,7 @@ export function ConfigSummary({ config: c }: { config: Config }) {
         <h3>{c.name}</h3>
         <p>{c.purpose}</p>
         <span>
+          {groupLabel(c.customerGroup)} · {journeyLabel(c.journey)} ·{" "}
           {c.category} · {c.owner}
         </span>
       </div>
@@ -432,7 +488,26 @@ export function ConfigSummary({ config: c }: { config: Config }) {
         {c.actions.map((a, i) => (
           <p key={a.id}>
             {i + 1}. {a.title} ·{" "}
-            {a.type === "notification" ? a.channels.join(" + ") : a.type}
+            {a.type === "notification"
+              ? a.channels.join(" + ")
+              : a.type === "service_offer"
+                ? "Offer dịch vụ"
+                : a.type === "offer"
+                  ? "Offer sản phẩm chính sách"
+                  : a.type}
+            {(a.type === "offer" || a.type === "service_offer") && (
+              <span className="summary-offer-items">
+                {(a.type === "offer" ? a.products : a.services || [])
+                  .map(
+                    (id) =>
+                      (a.type === "offer"
+                        ? state.products
+                        : state.services
+                      ).find((item) => item.id === id)?.name || id,
+                  )
+                  .join(" · ")}
+              </span>
+            )}
           </p>
         ))}
       </div>
@@ -951,7 +1026,10 @@ function Actions({
                       <Checkbox
                         label={p.name}
                         checked={a.products.includes(p.id)}
-                        disabled={!p.active}
+                        disabled={
+                          !catalogAvailable(p, state.now) &&
+                          !a.products.includes(p.id)
+                        }
                         onChange={(_, d) =>
                           update(a.id, {
                             products: d.checked
@@ -960,12 +1038,64 @@ function Actions({
                           })
                         }
                       />
-                      {!p.active && <small>Hết hiệu lực</small>}
+                      {!catalogAvailable(p, state.now) && (
+                        <small>Hết hiệu lực</small>
+                      )}
                     </label>
                   ))}
                 </div>
                 <Button onClick={() => setPreview(a)}>
                   Xem offer trên ứng dụng giao dịch
+                </Button>
+              </>
+            )}
+            {a.type === "service_offer" && (
+              <>
+                <Choice
+                  label="Vị trí hiển thị dịch vụ"
+                  value={a.placement}
+                  onChange={(placement) => update(a.id, { placement })}
+                  options={["Trang chủ", "Trang tài sản", "Trang dịch vụ"]}
+                />
+                <p className="hint">
+                  Chọn dịch vụ phù hợp với nhu cầu của tệp khách hàng. Có thể
+                  kết hợp nhiều loại hình.
+                </p>
+                {serviceGroups.map((group) => (
+                  <fieldset className="service-offer-group" key={group}>
+                    <legend>{group}</legend>
+                    <div className="product-picker">
+                      {state.services
+                        .filter((service) => service.group === group)
+                        .map((service) => (
+                          <label key={service.id}>
+                            <Checkbox
+                              label={service.name}
+                              checked={(a.services || []).includes(service.id)}
+                              disabled={
+                                !catalogAvailable(service, state.now) &&
+                                !(a.services || []).includes(service.id)
+                              }
+                              onChange={(_, data) =>
+                                update(a.id, {
+                                  services: data.checked
+                                    ? [...(a.services || []), service.id]
+                                    : (a.services || []).filter(
+                                        (id) => id !== service.id,
+                                      ),
+                                })
+                              }
+                            />
+                            {!catalogAvailable(service, state.now) && (
+                              <small>Hết hiệu lực</small>
+                            )}
+                          </label>
+                        ))}
+                    </div>
+                  </fieldset>
+                ))}
+                <Button onClick={() => setPreview(a)}>
+                  Xem offer dịch vụ trên ứng dụng
                 </Button>
               </>
             )}
@@ -1018,7 +1148,16 @@ function Actions({
         {[
           ["notification", "Thông báo", "Email, SMS, ứng dụng"],
           ["task", "Giao việc", "Tư vấn, chăm sóc, vận hành"],
-          ["offer", "Offer sản phẩm", "Sản phẩm hoặc bộ giải pháp"],
+          [
+            "offer",
+            "Offer sản phẩm chính sách",
+            "Chính sách giao dịch và bộ sản phẩm",
+          ],
+          [
+            "service_offer",
+            "Offer dịch vụ",
+            "Tư vấn đầu tư, danh mục mẫu, quản lý tài sản",
+          ],
           ["control", "Kiểm soát nghiệp vụ", "Thao tác khẩn cấp theo quyền"],
         ].map(([type, title, sub]) => (
           <button
@@ -1050,14 +1189,24 @@ function Actions({
         onClose={() => setPreview(null)}
       >
         {preview &&
-          (preview.type === "offer" ? (
+          (preview.type === "offer" || preview.type === "service_offer" ? (
             <div className="phone-preview">
               <Logo />
-              <small>GIẢI PHÁP DÀNH CHO BẠN</small>
+              <small>
+                {preview.type === "service_offer"
+                  ? "DỊCH VỤ DÀNH CHO BẠN"
+                  : "CHÍNH SÁCH DÀNH CHO BẠN"}
+              </small>
               <h2>{preview.title}</h2>
-              {preview.products.map((id) => (
+              {(preview.type === "offer"
+                ? preview.products
+                : preview.services || []
+              ).map((id) => (
                 <div key={id} className="offer-preview-product">
-                  {state.products.find((p) => p.id === id)?.name}
+                  {(preview.type === "offer"
+                    ? state.products
+                    : state.services
+                  ).find((p) => p.id === id)?.name || id}
                 </div>
               ))}
               <p>Minh họa vị trí {preview.placement}</p>

@@ -53,6 +53,15 @@ import {
 } from "./ui";
 import { ConfigSummary } from "./builder";
 import { Trace } from "./conditions";
+import {
+  journeys,
+  categoryStages,
+  customerGroups,
+  serviceGroups,
+  journeyLabel,
+  groupLabel,
+  matchesCustomerGroup,
+} from "./taxonomy";
 const detailTabs: [string, string][] = [
   ["overview", "Tổng quan"],
   ["config", "Cấu hình"],
@@ -292,7 +301,7 @@ export function ScenarioDetail() {
         <Link to="/scenarios">← Quản lý kịch bản</Link>
       </div>
       <Header
-        eyebrow={`${s.code} · ${c.category}${v ? ` · PHIÊN BẢN ${v.no}` : ""}`}
+        eyebrow={`${s.code} · ${journeyLabel(c.journey)} · ${groupLabel(c.customerGroup)} · ${c.category}${v ? ` · PHIÊN BẢN ${v.no}` : ""}`}
         title={c.name || "Kịch bản chưa đặt tên"}
         sub={c.purpose}
       >
@@ -700,9 +709,16 @@ function SimulateModal({
   const store = useStore(),
     nav = useNavigate();
   const c = getConfig(scenario);
+  const customers = store.state.customers.filter((customer) =>
+    matchesCustomerGroup(customer, c.customerGroup),
+  );
   const [eventType, setEventType] = useState(c.events[0] || "schedule"),
     [trigger, setTrigger] = useState("EV-DEMO-001"),
-    [customer, setCustomer] = useState("C005"),
+    [customer, setCustomer] = useState(
+      customers.find((customer) => customer.id === "C005")?.id ||
+        customers[0]?.id ||
+        "",
+    ),
     [amount, setAmount] = useState(100000000),
     [at, setAt] = useState(
       c.mode === "schedule"
@@ -744,6 +760,10 @@ function SimulateModal({
         Dùng dữ liệu mẫu sau sự kiện. Không gửi tin, không đặt offer hoặc khóa
         tài khoản thật.
       </Notice>
+      <p className="hint">
+        Tệp áp dụng: {groupLabel(c.customerGroup)} · {customers.length} khách
+        hàng mẫu
+      </p>
       {c.mode === "event" ? (
         <>
           <Choice
@@ -764,10 +784,7 @@ function SimulateModal({
             label="Khách hàng liên quan"
             value={customer}
             onChange={setCustomer}
-            options={store.state.customers.map((c) => [
-              c.id,
-              `${c.id} · ${c.name}`,
-            ])}
+            options={customers.map((c) => [c.id, `${c.id} · ${c.name}`])}
           />
           <Text
             label="Giá trị amount (VND)"
@@ -1453,9 +1470,11 @@ export function ConflictPage() {
                   <p>
                     {a.type === "notification"
                       ? a.body.noti
-                      : a.type === "offer"
-                        ? `${a.placement} · ${a.products.join(", ")}`
-                        : a.control}
+                      : a.type === "service_offer"
+                        ? `${a.placement} · ${(a.services || []).map((id) => state.services.find((s) => s.id === id)?.name || id).join(", ")}`
+                        : a.type === "offer"
+                          ? `${a.placement} · ${a.products.join(", ")}`
+                          : a.control}
                   </p>
                 </div>
               ))}
@@ -1523,45 +1542,61 @@ export function Catalogs() {
   const { state, act } = useStore();
   const [query, setQuery] = useState(""),
     [item, setItem] = useState<CatalogItem | null>(null);
-  const editable = ["categories", "products", "bundles"].includes(kind),
+  const [catalogGroup, setCatalogGroup] = useState("all");
+  const editable = ["categories", "products", "services", "bundles"].includes(
+      kind,
+    ),
     list =
       kind === "categories"
         ? state.categories
-        : kind === "products"
-          ? state.products
-          : kind === "bundles"
-            ? state.bundles
-            : kind === "metrics"
-              ? metrics.map((m) => ({
-                  id: m.id,
-                  name: m.label,
-                  description: m.definition,
-                  active: true,
-                  group: m.group,
-                }))
-              : kind === "events"
-                ? events.map((e) => ({
-                    id: e.id,
-                    name: e.label,
-                    description:
-                      e.id === "fund.navPublished"
-                        ? "Đối tượng: khách nắm giữ sản phẩm P05"
-                        : "Đối tượng: khách hàng / tài khoản liên quan",
-                    active: true,
-                    group: e.group,
-                  }))
-                : ["notification", "task", "offer", "control"].map((id, i) => ({
-                    id,
-                    name: [
-                      "Thông báo",
-                      "Giao việc",
-                      "Offer sản phẩm",
-                      "Kiểm soát nghiệp vụ",
-                    ][i],
-                    description:
-                      "Thành phần hành động dùng chung của hệ thống.",
-                    active: true,
-                  }));
+        : kind === "services"
+          ? state.services.filter(
+              (s) => catalogGroup === "all" || s.group === catalogGroup,
+            )
+          : kind === "customers"
+            ? customerGroups.map((g) => ({ ...g, active: true }))
+            : kind === "products"
+              ? state.products
+              : kind === "bundles"
+                ? state.bundles
+                : kind === "metrics"
+                  ? metrics.map((m) => ({
+                      id: m.id,
+                      name: m.label,
+                      description: m.definition,
+                      active: true,
+                      group: m.group,
+                    }))
+                  : kind === "events"
+                    ? events.map((e) => ({
+                        id: e.id,
+                        name: e.label,
+                        description:
+                          e.id === "fund.navPublished"
+                            ? "Đối tượng: khách nắm giữ sản phẩm P05"
+                            : "Đối tượng: khách hàng / tài khoản liên quan",
+                        active: true,
+                        group: e.group,
+                      }))
+                    : [
+                        "notification",
+                        "task",
+                        "offer",
+                        "service_offer",
+                        "control",
+                      ].map((id, i) => ({
+                        id,
+                        name: [
+                          "Thông báo",
+                          "Giao việc",
+                          "Offer sản phẩm chính sách",
+                          "Offer dịch vụ",
+                          "Kiểm soát nghiệp vụ",
+                        ][i],
+                        description:
+                          "Thành phần hành động dùng chung của hệ thống.",
+                        active: true,
+                      }));
   const nav = useNavigate();
   return (
     <>
@@ -1581,7 +1616,13 @@ export function Catalogs() {
                 description: "",
                 active: true,
                 products: [],
-                group: kind === "products" ? "Cổ phiếu" : undefined,
+                group:
+                  kind === "products"
+                    ? "Cổ phiếu"
+                    : kind === "services"
+                      ? serviceGroups[0]
+                      : undefined,
+                journeys: kind === "categories" ? ["onboarding"] : undefined,
               })
             }
           >
@@ -1592,8 +1633,10 @@ export function Catalogs() {
       <Tabs
         items={[
           ["categories", "Danh mục kịch bản"],
-          ["products", "Sản phẩm dịch vụ"],
+          ["products", "Sản phẩm chính sách"],
+          ["services", "Dịch vụ"],
           ["bundles", "Bộ sản phẩm"],
+          ["customers", "Tệp khách hàng"],
           ["metrics", "Đại lượng"],
           ["events", "Sự kiện"],
           ["actions", "Hành động"],
@@ -1601,9 +1644,33 @@ export function Catalogs() {
         value={kind}
         onChange={(v) => {
           setQuery("");
+          setCatalogGroup("all");
           nav("/catalogs/" + v);
         }}
       />
+      {kind === "services" && (
+        <div
+          className="service-catalog-groups"
+          role="group"
+          aria-label="Nhóm dịch vụ"
+        >
+          {["all", ...serviceGroups].map((group) => (
+            <Button
+              key={group}
+              aria-pressed={catalogGroup === group}
+              appearance={catalogGroup === group ? "primary" : "secondary"}
+              onClick={() => setCatalogGroup(group)}
+            >
+              {group === "all" ? "Tất cả dịch vụ" : group} ·{" "}
+              {
+                state.services.filter(
+                  (service) => group === "all" || service.group === group,
+                ).length
+              }
+            </Button>
+          ))}
+        </div>
+      )}
       <Panel
         title={`${list.length} mục trong thư viện`}
         action={
@@ -1633,7 +1700,13 @@ export function Catalogs() {
                       <small>{x.id}</small>
                     </td>
                     <td>{x.description}</td>
-                    <td>{"group" in x ? String(x.group || "—") : "—"}</td>
+                    <td>
+                      {kind === "categories"
+                        ? categoryStages(x).map(journeyLabel).join(" · ")
+                        : "group" in x
+                          ? String(x.group || "—")
+                          : "—"}
+                    </td>
                     <td>
                       <Badge
                         value={x.active ? "active" : "paused"}
@@ -1669,7 +1742,12 @@ export function Catalogs() {
             <Button onClick={() => setItem(null)}>Hủy</Button>
             <Button
               appearance="primary"
-              disabled={!item?.name.trim()}
+              disabled={
+                !item?.name.trim() ||
+                (kind === "categories" && !item?.journeys?.length) ||
+                (kind === "services" &&
+                  !serviceGroups.includes(item?.group || ""))
+              }
               onClick={() => {
                 if (
                   item &&
@@ -1677,9 +1755,11 @@ export function Catalogs() {
                     const target =
                       kind === "categories"
                         ? s.categories
-                        : kind === "products"
-                          ? s.products
-                          : s.bundles;
+                        : kind === "services"
+                          ? s.services
+                          : kind === "products"
+                            ? s.products
+                            : s.bundles;
                     const index = target.findIndex((x) => x.id === item.id);
                     if (index < 0) target.push(item);
                     else target[index] = item;
@@ -1706,6 +1786,32 @@ export function Catalogs() {
               value={item.description}
               onChange={(description) => setItem({ ...item, description })}
             />
+            {kind === "categories" && (
+              <Checks
+                label="Thuộc hành trình khách hàng *"
+                values={item.journeys || categoryStages(item)}
+                onChange={(selected) =>
+                  setItem({ ...item, journeys: selected })
+                }
+                options={journeys.map(([id, label]) => [id, label])}
+              />
+            )}
+            {kind === "services" && (
+              <>
+                <Choice
+                  label="Nhóm dịch vụ *"
+                  value={item.group || serviceGroups[0]}
+                  onChange={(group) => setItem({ ...item, group })}
+                  options={serviceGroups}
+                />
+                <Text
+                  label="Hiệu lực đến"
+                  type="date"
+                  value={item.end || ""}
+                  onChange={(end) => setItem({ ...item, end })}
+                />
+              </>
+            )}
             {kind === "products" && (
               <>
                 <Choice
@@ -1719,7 +1825,6 @@ export function Catalogs() {
                     "Trái phiếu",
                     "CCQ",
                     "MM",
-                    "Tư vấn",
                   ]}
                 />
                 <Text

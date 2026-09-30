@@ -20,7 +20,9 @@ import {
   activationStatus,
   newConfig,
 } from "./domain";
-import { seed, withDemoHistory } from "./seed";
+import { seed } from "./seed";
+import { migrateState } from "./migration";
+import { catalogAvailable, categorySupportsJourney } from "./taxonomy";
 import { transaction } from "./transaction";
 const KEY = "sms.mock.v1";
 type Store = {
@@ -63,8 +65,7 @@ function load() {
         error:
           "Dữ liệu lưu không tương thích. Xuất bản lưu cũ trước khi đặt lại; thay đổi sẽ chưa được lưu.",
       };
-    const state = parsed as State;
-    state.customers = state.customers.map(withDemoHistory);
+    const state = migrateState(parsed as State);
     return { state, error: "" };
   } catch {
     return {
@@ -178,16 +179,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (errors.length) throw new Error(errors.join(" · "));
       if (!s.categories.some((x) => x.id === c.category && x.active))
         throw new Error("Danh mục đã ngừng sử dụng");
+      if (
+        !s.categories.some(
+          (x) => x.id === c.category && categorySupportsJourney(x, c.journey),
+        )
+      )
+        throw new Error("Danh mục không thuộc bước hành trình đã chọn");
       for (const a of c.actions)
-        if (a.type === "offer")
-          for (const p of a.products) {
-            const item = s.products.find((x) => x.id === p);
-            if (
-              !item?.active ||
-              (item.end &&
-                Date.parse(item.end + "T23:59:59+07:00") < Date.parse(s.now))
-            )
-              throw new Error("Offer chứa sản phẩm đã hết hiệu lực");
+        if (a.type === "offer" || a.type === "service_offer")
+          for (const p of a.type === "offer" ? a.products : a.services || []) {
+            const item = (a.type === "offer" ? s.products : s.services).find(
+              (x) => x.id === p,
+            );
+            if (!item || !catalogAvailable(item, s.now))
+              throw new Error(
+                `Offer chứa ${a.type === "offer" ? "sản phẩm" : "dịch vụ"} đã hết hiệu lực hoặc không còn trong danh mục`,
+              );
           }
       const no = sc.versions.length + 1,
         versionId = `${id}-v${no}`,

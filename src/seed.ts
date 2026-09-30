@@ -48,6 +48,8 @@ export function withDemoHistory(customer: Customer, index: number): Customer {
   }
   return { ...customer, values };
 }
+import { categoryJourneys, customerGroups, defaultServices } from "./taxonomy";
+
 export function seed(): State {
   return withSeedIds(buildSeed);
 }
@@ -63,7 +65,13 @@ function buildSeed(): State {
     ["GS", "Giám sát & kế hoạch", "Theo dõi tài sản và kế hoạch tài chính"],
     ["TV", "Tư vấn & giải pháp", "Kết nối nhu cầu với giải pháp phù hợp"],
     ["QH", "Quan hệ & gắn kết", "Duy trì mối quan hệ có chiều sâu"],
-  ].map(([id, name, description]) => ({ id, name, description, active: true }));
+  ].map(([id, name, description]) => ({
+    id,
+    name,
+    description,
+    active: true,
+    journeys: categoryJourneys[id],
+  }));
   const customers: Customer[] = Array.from({ length: 120 }, (_, k) => {
     const i = k + 1,
       values: Customer["values"] = {};
@@ -103,8 +111,9 @@ function buildSeed(): State {
       id: `C${String(i).padStart(3, "0")}`,
       accountId: `A${String(i).padStart(3, "0")}`,
       name: `Khách hàng ${String(i).padStart(3, "0")}`,
+      groupId: customerGroups[k % customerGroups.length].id,
       values,
-      products: [`P${String((i % 12) + 1).padStart(2, "0")}`],
+      products: [`P${String((i % 11) + 1).padStart(2, "0")}`],
     };
   }).map(withDemoHistory);
   const names = [
@@ -143,6 +152,36 @@ function buildSeed(): State {
       c = newConfig(NOW);
     c.name = name;
     c.category = categories[Math.floor(k / 4)].id;
+    c.journey = [
+      "onboarding",
+      "trading",
+      "onboarding",
+      "cash_in",
+      "onboarding",
+      "onboarding",
+      "investing",
+      "investing",
+      "trading",
+      "trading",
+      "investing",
+      "investing",
+      "trading",
+      "wealth",
+      "cash_in",
+      "cash_in",
+      "investing",
+      "investing",
+      "wealth",
+      "wealth",
+      "wealth",
+      "wealth",
+      "onboarding",
+      "wealth",
+    ][k];
+    c.customerGroup =
+      k % 3 === 0 && ![15, 16].includes(n)
+        ? customerGroups[k % customerGroups.length].id
+        : "all";
     c.purpose = `Chủ động ${name.toLowerCase()}, mang đến trải nghiệm phù hợp và ghi nhận nhu cầu khách hàng.`;
     c.condition =
       n === 15
@@ -183,6 +222,10 @@ function buildSeed(): State {
       c.actions[0].products = ["P05", "P07"];
       c.actions[0].placement = "Trang chủ";
     }
+    if (n === 19 || n === 20) {
+      c.actions[0].type = "service_offer";
+      c.actions[0].services = n === 19 ? ["S101", "S203"] : ["S302"];
+    }
     const isDraft = draft.includes(n);
     const v = {
       id: `${id}-v1`,
@@ -218,12 +261,13 @@ function buildSeed(): State {
     tasks: [],
     batches: [],
     categories,
-    products: Array.from({ length: 12 }, (_, i) => ({
+    services: defaultServices(),
+    products: Array.from({ length: 11 }, (_, i) => ({
       id: `P${String(i + 1).padStart(2, "0")}`,
-      name: `Demo ${["Cổ phiếu", "Phái sinh", "Margin", "Trái phiếu", "Quỹ cân bằng", "Quỹ tăng trưởng", "Money market", "Ứng trước", "Trái phiếu kỳ hạn", "Quỹ thu nhập", "MM linh hoạt", "Dịch vụ tư vấn"][i]}`,
+      name: `Demo ${["Cổ phiếu", "Phái sinh", "Margin", "Trái phiếu", "Quỹ cân bằng", "Quỹ tăng trưởng", "Money market", "Ứng trước", "Trái phiếu kỳ hạn", "Quỹ thu nhập", "MM linh hoạt"][i]}`,
       description:
-        "Sản phẩm minh họa cho cấu hình và trình diễn. Không phải chào bán.",
-      active: i !== 11,
+        "Sản phẩm chính sách giao dịch minh họa cho cấu hình và trình diễn.",
+      active: true,
       group: [
         "Cổ phiếu",
         "Phái sinh",
@@ -236,9 +280,8 @@ function buildSeed(): State {
         "Trái phiếu",
         "CCQ",
         "MM",
-        "Tư vấn",
       ][i],
-      end: i === 11 ? "2026-09-01" : "2027-12-31",
+      end: "2027-12-31",
     })),
     bundles: [
       {

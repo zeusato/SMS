@@ -1,4 +1,9 @@
 import { parseFormula, type FormulaToken } from "./formula";
+import {
+  customerGroupOptions,
+  journeys,
+  matchesCustomerGroup,
+} from "./taxonomy";
 
 export type Value = number | string | boolean | null;
 export const changePeriods = {
@@ -42,6 +47,7 @@ export type Metric = {
   definition: string;
 };
 export type Customer = {
+  groupId?: string;
   id: string;
   name: string;
   accountId: string;
@@ -62,7 +68,7 @@ export type Schedule = {
 };
 export type Action = {
   id: string;
-  type: "notification" | "task" | "offer" | "control";
+  type: "notification" | "task" | "offer" | "service_offer" | "control";
   title: string;
   recipients: string[];
   channels: string[];
@@ -75,6 +81,7 @@ export type Action = {
   reason?: string;
   email: object | null;
   products: string[];
+  services?: string[];
   placement: string;
   control: string;
   dueDays: number;
@@ -82,6 +89,8 @@ export type Action = {
 export type Config = {
   name: string;
   category: string;
+  journey: string;
+  customerGroup: string;
   purpose: string;
   owner: string;
   unit: string;
@@ -204,6 +213,7 @@ export type Batch = {
   reviewed: boolean;
 };
 export type CatalogItem = {
+  journeys?: string[];
   id: string;
   name: string;
   description: string;
@@ -224,6 +234,7 @@ export type State = {
   batches: Batch[];
   categories: CatalogItem[];
   products: CatalogItem[];
+  services: CatalogItem[];
   bundles: CatalogItem[];
   audit: { id: string; at: string; actor: string; message: string }[];
   reviews: Record<string, string>;
@@ -463,9 +474,11 @@ export function newAction(type: Action["type"] = "notification"): Action {
         ? "Thông báo cho khách hàng"
         : type === "task"
           ? "Liên hệ và ghi nhận nhu cầu"
-          : type === "offer"
-            ? "Giới thiệu giải pháp phù hợp"
-            : "Kiểm soát nghiệp vụ",
+          : type === "service_offer"
+            ? "Giới thiệu dịch vụ phù hợp"
+            : type === "offer"
+              ? "Giới thiệu giải pháp phù hợp"
+              : "Kiểm soát nghiệp vụ",
     recipients: ["Khách hàng"],
     channels: ["noti"],
     body: {
@@ -482,6 +495,7 @@ export function newAction(type: Action["type"] = "notification"): Action {
     reason: "",
     email: null,
     products: [],
+    services: [],
     placement: "Trang chủ",
     control: "Khóa phát vay",
     dueDays: 2,
@@ -490,7 +504,9 @@ export function newAction(type: Action["type"] = "notification"): Action {
 export function newConfig(now = NOW): Config {
   return {
     name: "",
-    category: "GS",
+    category: "",
+    journey: "",
+    customerGroup: "",
     purpose: "",
     owner: owners[0],
     unit: units[0],
@@ -751,12 +767,19 @@ export function evaluate(
     reason: `${a.reason || `${exprLabel(c.left)} = ${money(a.value)}`}; yêu cầu ${opSymbols[c.op]} ${money(b.value)}${c.extra ? ` đến ${exprLabel(c.extra)}` : ""}`,
   };
 }
-export function subjects(state: State, scope: Config["scope"]): Customer[] {
+export function subjects(
+  state: State,
+  scope: Config["scope"],
+  customerGroup = "all",
+): Customer[] {
+  const customers = state.customers.filter((c) =>
+    matchesCustomerGroup(c, customerGroup),
+  );
   return scope === "customer"
-    ? state.customers
-    : state.customers.flatMap((c, i) => [
+    ? customers
+    : customers.flatMap((c) => [
         { ...c, id: c.accountId },
-        ...((i + 1) % 10 === 0
+        ...((state.customers.indexOf(c) + 1) % 10 === 0
           ? [
               {
                 ...c,
@@ -983,6 +1006,10 @@ export function validate(c: Config, step?: number): string[] {
   const errors: string[] = [];
   const check = (n: number) => step === undefined || step === n;
   if (check(0)) {
+    if (!journeys.some((j) => j[0] === c.journey))
+      errors.push("Chọn bước hành trình khách hàng");
+    if (!customerGroupOptions.some((g) => g[0] === c.customerGroup))
+      errors.push("Chọn tệp khách hàng áp dụng");
     if (c.name.trim().length < 5 || c.name.length > 120)
       errors.push("Tên cần từ 5 đến 120 ký tự");
     if (c.purpose.trim().length < 20 || c.purpose.length > 800)
@@ -1048,6 +1075,8 @@ export function validate(c: Config, step?: number): string[] {
         errors.push("Điền lý do thao tác kiểm soát");
       if (a.type === "offer" && !a.products.length)
         errors.push("Chọn sản phẩm cho offer");
+      if (a.type === "service_offer" && !a.services?.length)
+        errors.push("Chọn dịch vụ cho offer");
     }
   }
   if (check(4)) {
@@ -1192,7 +1221,7 @@ export function simulate(
     !scheduleRuns(c, at, 1).runs.some((t) => Date.parse(t) === Date.parse(at))
   )
     throw new Error("Mốc này không thuộc lịch đã đăng ký.");
-  const all = subjects(state, c.scope),
+  const all = subjects(state, c.scope, c.customerGroup),
     target = state.customers.find((x) => x.id === customerId);
   const candidates =
     c.mode === "schedule"
@@ -1295,14 +1324,21 @@ export function simulate(
             const body = renderBody(
               action.type === "notification"
                 ? action.body[channel]
-                : action.type === "offer"
-                  ? action.products
+                : action.type === "service_offer"
+                  ? (action.services || [])
                       .map(
                         (id) =>
-                          state.products.find((p) => p.id === id)?.name || id,
+                          state.services.find((s) => s.id === id)?.name || id,
                       )
                       .join(", ")
-                  : action.title,
+                  : action.type === "offer"
+                    ? action.products
+                        .map(
+                          (id) =>
+                            state.products.find((p) => p.id === id)?.name || id,
+                        )
+                        .join(", ")
+                    : action.title,
               customer,
               c.name,
             );
@@ -1447,8 +1483,9 @@ export function conflicts(state: State) {
         state.customers
           .filter(
             (c) =>
+              matchesCustomerGroup(c, getConfig(s).customerGroup) &&
               evaluate(getConfig(s).condition, c.values, state.now).verdict ===
-              "match",
+                "match",
           )
           .map((c) => c.id),
       ),
@@ -1478,8 +1515,8 @@ export function conflicts(state: State) {
       for (const x of ca.actions)
         for (const y of cb.actions) {
           if (
-            x.type === "offer" &&
-            y.type === "offer" &&
+            ["offer", "service_offer"].includes(x.type) &&
+            ["offer", "service_offer"].includes(y.type) &&
             x.placement === y.placement
           ) {
             kind = "Chồng lấn vị trí offer";
@@ -1500,11 +1537,13 @@ export function conflicts(state: State) {
               "Nội dung và kênh trùng nhau; chưa khẳng định trùng thời điểm gửi.";
           }
           if (
-            (x.type === "control" && y.type === "offer") ||
-            (y.type === "control" && x.type === "offer")
+            (x.type === "control" &&
+              ["offer", "service_offer"].includes(y.type)) ||
+            (y.type === "control" &&
+              ["offer", "service_offer"].includes(x.type))
           ) {
             const control = x.type === "control" ? x : y;
-            const offer = x.type === "offer" ? x : y;
+            const offer = x.type === "control" ? y : x;
             const blocked =
               control.control === "Khóa tài khoản" ||
               control.control === "Khóa giao dịch" ||

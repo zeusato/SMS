@@ -11,6 +11,15 @@ async function openEditor(page: Page) {
     .fill(
       "Phát hiện thay đổi về tài sản và dư nợ để chủ động chăm sóc khách hàng.",
     );
+  await page
+    .getByRole("combobox", { name: "Tệp khách hàng áp dụng *", exact: true })
+    .selectOption("all");
+  await page
+    .getByRole("combobox", { name: "Hành trình khách hàng *", exact: true })
+    .selectOption("wealth");
+  await page
+    .getByRole("combobox", { name: "Danh mục kịch bản *", exact: true })
+    .selectOption("GS");
   await page.getByRole("button", { name: "Tiếp tục", exact: true }).click();
   await page.getByRole("button", { name: "Nâng cao", exact: true }).click();
 }

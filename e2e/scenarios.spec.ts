@@ -13,6 +13,15 @@ test("creates a draft, evaluates real conditions and restores it after reload", 
     .fill(
       "Chủ động trao đổi và ghi nhận kế hoạch sử dụng tài sản của khách hàng.",
     );
+  await page
+    .getByRole("combobox", { name: "Tệp khách hàng áp dụng *", exact: true })
+    .selectOption("all");
+  await page
+    .getByRole("combobox", { name: "Hành trình khách hàng *", exact: true })
+    .selectOption("wealth");
+  await page
+    .getByRole("combobox", { name: "Danh mục kịch bản *", exact: true })
+    .selectOption("GS");
   await page.getByRole("button", { name: "Tiếp tục", exact: true }).click();
   await page
     .getByRole("button", { name: "Dùng công thức trình diễn", exact: true })

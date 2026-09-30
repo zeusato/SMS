@@ -40,21 +40,30 @@ Có thể xem bản build trên máy bằng `npm run build` rồi `npm run previ
 
 ## Có thể trình diễn
 
-- Dashboard 6 danh mục, KPI dẫn xuất từ lịch sử, biểu đồ hoạt động và các nội dung cần chú ý.
+- Dashboard có 5 tab hành trình Onboarding / Cash in / Trading / Investing / Wealth, danh mục và số đếm theo hành trình, lọc tệp khách hàng mặc định Tất cả. Bấm số đếm mở danh sách với cùng bộ lọc.
 - Quản lý kịch bản: tìm kiếm, lọc đa chiều, lưu chế độ xem theo vai trò, lịch sử và phân trang.
-- 5 màn thiết lập độc lập: thông tin → điều kiện → kích hoạt → hành động → hiệu lực và hậu xử lý. Review nằm trong ngăn bên phải của bước 5.
+- 5 màn thiết lập độc lập: thông tin → điều kiện → kích hoạt → hành động → hiệu lực và hậu xử lý. Bước 1 bắt buộc chọn tệp khách hàng và hành trình trước danh mục. Review nằm trong ngăn bên phải của bước 5.
 - Công xưởng điều kiện: 45 đại lượng thuộc 8 nhóm, nhóm VÀ/HOẶC, biểu thức số học, cấp khách hàng/tài khoản, xem thử và giải thích từng đối tượng.
 - 37 sự kiện thuộc 9 nhóm hoặc lịch giờ/ngày/tuần/tháng/năm, khoảng nghỉ và ngoại lệ lịch.
-- Thông báo nhiều kênh/đối tượng; Tiptap email editor có biến, bố cục, CTA và preview; offer/bộ sản phẩm; giao việc; kiểm soát nghiệp vụ mô phỏng.
+- Thông báo nhiều kênh/đối tượng; Tiptap email editor có biến, bố cục, CTA và preview; offer sản phẩm chính sách/bộ sản phẩm; offer dịch vụ riêng; giao việc; kiểm soát nghiệp vụ mô phỏng.
 - Công bố tạo phiên bản và AutomationPlan có nguồn kích hoạt, nodes/edges, cấu hình bất biến và sơ đồ tương tác. Trình mô phỏng đọc cấu hình của plan được công bố.
 - Nhật ký đánh giá/kích hoạt, snapshot, chống trùng, tái kích hoạt, thử lại hành động lỗi, công việc từng lần và báo cáo theo kỳ.
 - Sửa tạo nháp mới bên cạnh phiên bản hiện hành. Admin xóa có lý do và tombstone; lịch sử không bị xóa theo.
-- Danh mục kịch bản, sản phẩm và bộ sản phẩm có tạo/sửa/ngừng sử dụng. Thư viện đại lượng/sự kiện/hành động hiện dùng định nghĩa cố định.
+- Danh mục kịch bản, sản phẩm chính sách, dịch vụ và bộ sản phẩm có tạo/sửa/ngừng sử dụng. Có thể cấu hình danh mục thuộc một hoặc nhiều hành trình. Thư viện đại lượng/sự kiện/hành động hiện dùng định nghĩa cố định.
+
+## Tệp khách hàng và dịch vụ
+
+- Tệp mẫu: **Careby, DYI, Hybrid, Priority, Private Wealth**; mỗi khách hàng có một tệp. Chọn Tất cả để áp dụng chung. Tệp đã chọn được dùng trong xem thử, mô phỏng sự kiện/lịch và kiểm tra giao nhau khi phát hiện xung đột.
+- Khi lọc một tệp trên dashboard/danh sách, kết quả gồm kịch bản dành riêng cho tệp đó và kịch bản áp dụng cho Tất cả. Bộ lọc này chỉ áp dụng cụm danh mục/hành trình; KPI điều hành bên trên vẫn là tổng toàn hệ thống.
+- **Tư vấn đầu tư (5):** cơ bản, mạo hiểm, giá trị, tăng trưởng, tạo thu nhập.
+- **Danh mục mẫu (4):** phòng thủ, cân bằng, tăng trưởng, theo chủ đề.
+- **Quản lý tài sản (3):** bảo toàn tài sản, quản lý tài sản cân bằng, tăng trưởng tài sản dài hạn.
+- Hành động Offer dịch vụ chọn nhiều dịch vụ từ ba nhóm, có vị trí hiển thị và xem trước; dịch vụ hết hiệu lực/ngừng sử dụng không được chọn mới hoặc công bố.
 
 ## Mạch demo gợi ý
 
 1. **Công cụ trình diễn → Đặt lại dữ liệu minh họa**: 24 kịch bản, 12 đang hoạt động, 120 khách giả/132 tài khoản. Mốc demo 29/09/2026 10:00 UTC+7.
-2. Tạo kịch bản “Rà soát kế hoạch sử dụng tiền”, nhập mục đích ít nhất 20 ký tự.
+2. Tạo kịch bản “Rà soát kế hoạch sử dụng tiền”, nhập mục đích ít nhất 20 ký tự; chọn tệp **Tất cả**, hành trình **Cash in**, danh mục **Giám sát & kế hoạch**.
 3. Bước 2 chọn **Dùng công thức trình diễn → Xem thử đối tượng**. 300 triệu: 33 thỏa/82 không thỏa/5 thiếu dữ liệu. Đổi 500 triệu: 16/99/5. C005 thỏa, C017 thiếu dữ liệu, C011 không thỏa.
 4. Xem cả hai cơ chế kích hoạt; chọn Nộp tiền. Thêm Email, soạn nội dung và lưu về đúng hành động.
 5. Bật hậu xử lý từng lần và theo kỳ; xem lại, công bố. Mở **Tiến trình tự động** để giải thích đầu ra của việc thiết lập.
@@ -73,7 +82,7 @@ npm test
 
 `src/domain.ts`: mô hình, evaluator, lịch, compiler và mô phỏng. `seed.ts`: dữ liệu cố định. `store.tsx`/`transaction.ts`: lưu trạng thái nguyên tử. `builder.tsx`/`conditions.tsx`: wizard và email. `operations.tsx`: vận hành và danh mục. `overview.tsx`: dashboard/quản lý. `public/brand`: bản sao nguyên gốc asset. `screenshots`: ảnh kiểm tra giao diện.
 
-Có thêm 3 smoke specs trong `e2e/` và cấu hình Playwright để chạy lại bằng `npm run test:e2e` sau khi cài browser của Playwright (`npx playwright install chromium`). Các specs CLI này **chưa được thực thi trong lượt bàn giao**; kiểm tra UI thực tế đã thực hiện bằng Browser trong Codex. Unit suite tách riêng với `vitest.config.ts`.
+Có 10 kiểm thử UI trong `e2e/` và cấu hình Playwright để chạy lại bằng `npm run test:e2e` sau khi cài browser của Playwright (`npx playwright install chromium`). Kiểm tra ngày 30/09/2026 đã chạy bằng Chrome cài sẵn; kết quả và phạm vi ở QA.md. Unit suite tách riêng với `vitest.config.ts`.
 
 ## Ranh giới bản demo
 
@@ -84,3 +93,5 @@ Quyền là persona trình diễn, chưa phải xác thực/phân quyền server
 ## Bảo toàn dữ liệu
 
 Namespace localStorage: `sms.mock.v1`. Reset chỉ thay namespace này. Có xuất JSON qua Công cụ trình diễn; nhập JSON chưa thuộc luồng UI. Lưu/publish thất bại không commit trạng thái một phần; bản nháp còn trong bộ nhớ và có nút xuất bản nháp. Giữ nguyên Excel nguồn, brand assets gốc và bộ tài liệu dự án.
+
+Bản lưu trước khi có hành trình/tệp được bổ sung khi đọc: tệp mặc định Tất cả, hành trình mặc định là bước đầu tiên được danh mục hỗ trợ; có thể sửa lại tại bước 1. Công thức nháp và lịch sử vẫn giữ nguyên. Dịch vụ tư vấn cũ chuyển sang thư viện dịch vụ, giữ mã và trạng thái; offer cũ chứa cả sản phẩm và dịch vụ được tách thành hai hành động liên tiếp. Vì giữ mục tư vấn cũ, bản lưu nâng cấp có thể có thêm một dịch vụ ngừng sử dụng so với 12 dịch vụ mới.

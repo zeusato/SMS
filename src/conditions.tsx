@@ -31,6 +31,7 @@ import {
   type ChangePeriod,
 } from "./domain";
 import { FormulaEditor, metricDragType } from "./formula-editor";
+import { groupLabel } from "./taxonomy";
 import {
   conditionTokens,
   parseFormula,
@@ -911,7 +912,9 @@ export function Conditions({
         <div className="preview-divider" />
         <p className="hint">
           Dữ liệu mẫu ·{" "}
-          {config.scope === "customer" ? "120 khách hàng" : "132 tài khoản"}
+          {subjects(state, config.scope, config.customerGroup).length}{" "}
+          {config.scope === "customer" ? "khách hàng" : "tài khoản"} ·{" "}
+          {groupLabel(config.customerGroup)}
         </p>
         <Button
           appearance="primary"
@@ -919,7 +922,7 @@ export function Conditions({
           disabled={!!formulaInvalid}
           onClick={() => {
             setResult(
-              subjects(state, config.scope).map((c) => ({
+              subjects(state, config.scope, config.customerGroup).map((c) => ({
                 customer: c,
                 verdict: evaluate(config.condition, c.values, state.now)
                   .verdict,
@@ -929,6 +932,7 @@ export function Conditions({
               JSON.stringify({
                 condition: config.condition,
                 scope: config.scope,
+                customerGroup: config.customerGroup,
               }),
             );
           }}
@@ -941,6 +945,7 @@ export function Conditions({
               JSON.stringify({
                 condition: config.condition,
                 scope: config.scope,
+                customerGroup: config.customerGroup,
               }) && (
               <Notice>Kết quả cần cập nhật sau khi sửa công thức.</Notice>
             )}

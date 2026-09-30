@@ -22,6 +22,9 @@ import {
 } from "./domain";
 function valid() {
   const c = newConfig();
+  c.category = "GS";
+  c.journey = "wealth";
+  c.customerGroup = "all";
   c.name = "Kịch bản kiểm thử";
   c.purpose = "Kiểm tra toàn bộ luồng thiết lập và vận hành.";
   c.condition = defaultCondition();

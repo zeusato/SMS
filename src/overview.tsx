@@ -17,6 +17,15 @@ import {
 } from "@fluentui/react-icons";
 import { useStore } from "./store";
 import {
+  journeys,
+  customerGroupOptions,
+  appliesToGroup,
+  categorySupportsJourney,
+  groupLabel,
+  journeyLabel,
+  serviceGroups,
+} from "./taxonomy";
+import {
   status,
   getConfig,
   date,
@@ -52,6 +61,20 @@ const catIcons = [
 export function Overview() {
   const { state } = useStore();
   const [period, setPeriod] = useState("14");
+  const [params, setParams] = useSearchParams();
+  const journey = journeys.some((j) => j[0] === params.get("journey"))
+    ? params.get("journey")!
+    : "onboarding";
+  const customerGroup = customerGroupOptions.some(
+    (g) => g[0] === params.get("customerGroup"),
+  )
+    ? params.get("customerGroup")!
+    : "all";
+  const select = (key: string, value: string) =>
+    setParams((previous) => {
+      previous.set(key, value);
+      return previous;
+    });
   const all = state.scenarios.filter((s) => !s.deleted),
     active = all.filter((s) => status(s, state.now) === "active");
   const from = Date.parse(addDays(state.now, -Number(period)));
@@ -73,6 +96,14 @@ export function Overview() {
     };
   });
   const max = Math.max(1, ...trend.map((x) => x.count));
+  const groupScenarios = all.filter((s) =>
+    appliesToGroup(getConfig(s), customerGroup),
+  );
+  const journeyScenarios = groupScenarios.filter(
+    (s) => getConfig(s).journey === journey,
+  );
+  const categoryLink = (category?: string, activeOnly = false) =>
+    `/scenarios?${new URLSearchParams({ journey, ...(customerGroup === "all" ? {} : { customerGroup }), ...(category ? { category } : {}), ...(activeOnly ? { status: "active" } : {}) })}`;
   return (
     <>
       <Header
@@ -146,53 +177,114 @@ export function Overview() {
       <div className="dashboard-grid">
         <Panel
           title="Danh mục kịch bản"
-          sub="Quản lý các điểm chạm theo mục tiêu nghiệp vụ"
+          sub="Quản lý các điểm chạm theo hành trình khách hàng"
+          className="journey-categories"
           action={
-            <Link className="text-link" to="/scenarios">
-              Xem tất cả <ArrowRight20Regular />
-            </Link>
+            <div className="journey-panel-actions">
+              <Choice
+                label="Tệp khách hàng"
+                value={customerGroup}
+                onChange={(value) => select("customerGroup", value)}
+                options={customerGroupOptions}
+              />
+              <Link className="text-link" to={categoryLink()}>
+                Xem tất cả <ArrowRight20Regular />
+              </Link>
+            </div>
           }
         >
-          <div className="category-grid">
-            {state.categories.map((cat, i) => {
-              const items = all.filter(
-                  (s) => getConfig(s)?.category === cat.id,
-                ),
-                n = items.filter(
-                  (s) => status(s, state.now) === "active",
-                ).length;
-              const Icon = catIcons[i % 6];
-              return (
-                <div className="category-card" key={cat.id}>
-                  <div className="category-top">
-                    <span className={`category-icon tone-${i}`}>
-                      <Icon />
-                    </span>
-                    <Link
-                      className="category-name"
-                      aria-label={`Xem danh mục ${cat.name}`}
-                      to={`/scenarios?category=${cat.id}`}
-                    >
-                      {cat.name}
-                    </Link>
-                  </div>
-                  <p>{cat.description}</p>
-                  <div className="category-bottom">
-                    <Link to={`/scenarios?category=${cat.id}`}>
-                      <b>{items.length.toString().padStart(2, "0")}</b>
-                      <span>kịch bản</span>
-                    </Link>
-                    <Link
-                      className="active-count"
-                      to={`/scenarios?category=${cat.id}&status=active`}
-                    >
-                      <i />
-                      {n} đang hoạt động
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
+          <div
+            className="journey-tabs"
+            role="tablist"
+            aria-label="Hành trình khách hàng"
+          >
+            {journeys.map(([id, label], index) => (
+              <button
+                key={id}
+                role="tab"
+                id={`journey-${id}`}
+                aria-selected={id === journey}
+                aria-controls="journey-categories"
+                className={id === journey ? "selected" : ""}
+                onClick={() => select("journey", id)}
+              >
+                <span className="journey-step">{index + 1}</span>
+                <span>{label}</span>
+                <b>
+                  {
+                    groupScenarios.filter((s) => getConfig(s).journey === id)
+                      .length
+                  }
+                </b>
+              </button>
+            ))}
+          </div>
+          <div className="journey-context">
+            <span>
+              {journeyLabel(journey)} · {groupLabel(customerGroup)}
+            </span>
+            <b>{journeyScenarios.length} kịch bản</b>
+          </div>
+          {customerGroup !== "all" && (
+            <p className="hint">
+              Bao gồm kịch bản dành riêng cho {groupLabel(customerGroup)} và
+              kịch bản áp dụng cho tất cả khách hàng.
+            </p>
+          )}
+          <div
+            role="tabpanel"
+            id="journey-categories"
+            aria-labelledby={`journey-${journey}`}
+          >
+            <div className="category-grid">
+              {state.categories
+                .filter(
+                  (cat) =>
+                    categorySupportsJourney(cat, journey) ||
+                    journeyScenarios.some(
+                      (s) => getConfig(s).category === cat.id,
+                    ),
+                )
+                .map((cat, i) => {
+                  const items = journeyScenarios.filter(
+                      (s) => getConfig(s)?.category === cat.id,
+                    ),
+                    n = items.filter(
+                      (s) => status(s, state.now) === "active",
+                    ).length;
+                  const Icon = catIcons[i % 6];
+                  return (
+                    <div className="category-card" key={cat.id}>
+                      <div className="category-top">
+                        <span className={`category-icon tone-${i}`}>
+                          <Icon />
+                        </span>
+                        <Link
+                          className="category-name"
+                          aria-label={`Xem danh mục ${cat.name}`}
+                          to={categoryLink(cat.id)}
+                        >
+                          {cat.name}
+                        </Link>
+                      </div>
+                      <p>{cat.description}</p>
+                      <div className="category-bottom">
+                        <Link to={categoryLink(cat.id)}>
+                          <b>{items.length.toString().padStart(2, "0")}</b>
+                          <span>kịch bản</span>
+                        </Link>
+                        <Link
+                          className="active-count"
+                          to={categoryLink(cat.id, true)}
+                        >
+                          <i />
+                          {n} đang hoạt động
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
           </div>
         </Panel>
         <Panel
@@ -352,6 +444,12 @@ export function ScenarioList() {
       (!s.deleted || params.get("status") === "deleted") &&
       normalize(c.name + " " + s.code).includes(normalize(query)) &&
       matchFacet("category", c.category) &&
+      matchFacet("journey", c.journey) &&
+      (!params.get("customerGroup") ||
+        params
+          .get("customerGroup")!
+          .split(",")
+          .some((group) => appliesToGroup(c, group))) &&
       matchFacet("status", status(s, state.now)) &&
       matchFacet("trigger", c.mode) &&
       matchFacet("owner", c.owner) &&
@@ -367,6 +465,18 @@ export function ScenarioList() {
         )) &&
       (!params.get("tag") ||
         c.tags.some((x) => params.get("tag")!.split(",").includes(x))) &&
+      (!params.get("service") ||
+        c.actions.some((a) =>
+          (a.services || []).some((id) =>
+            params
+              .get("service")!
+              .split(",")
+              .includes(
+                state.services.find((service) => service.id === id)?.group ||
+                  "",
+              ),
+          ),
+        )) &&
       (!params.get("channel") ||
         c.actions.some((a) =>
           a.channels.some((ch) =>
@@ -433,7 +543,16 @@ export function ScenarioList() {
             <span>
               {
                 state.scenarios.filter(
-                  (s) => !s.deleted && (!id || status(s, state.now) === id),
+                  (s) =>
+                    !s.deleted &&
+                    (!id || status(s, state.now) === id) &&
+                    matchFacet("journey", getConfig(s).journey) &&
+                    matchFacet("category", getConfig(s).category) &&
+                    (!params.get("customerGroup") ||
+                      params
+                        .get("customerGroup")!
+                        .split(",")
+                        .some((group) => appliesToGroup(getConfig(s), group))),
                 ).length
               }
             </span>
@@ -488,7 +607,23 @@ export function ScenarioList() {
           <div className="filter-chips">
             {facets.map(([key, val]) => (
               <button key={key} onClick={() => set(key, "")}>
-                {key}: {val} <span>×</span>
+                {key === "journey"
+                  ? "Hành trình"
+                  : key === "customerGroup"
+                    ? "Tệp khách hàng"
+                    : key}
+                :{" "}
+                {val
+                  .split(",")
+                  .map((value) =>
+                    key === "journey"
+                      ? journeyLabel(value)
+                      : key === "customerGroup"
+                        ? groupLabel(value)
+                        : value,
+                  )
+                  .join(", ")}{" "}
+                <span>×</span>
               </button>
             ))}
             <Button
@@ -596,6 +731,10 @@ export function ScenarioList() {
                           </td>
                           <td>
                             <span className="category-tag">{c.category}</span>
+                            <small>
+                              {journeyLabel(c.journey)} ·{" "}
+                              {groupLabel(c.customerGroup)}
+                            </small>
                           </td>
                           <td>
                             <span className="trigger-text">
@@ -695,6 +834,12 @@ export function ScenarioList() {
         <div className="form-grid">
           {[
             [
+              "journey",
+              "Hành trình khách hàng",
+              journeys.map(([id, label]) => [id, label]),
+            ],
+            ["customerGroup", "Tệp khách hàng áp dụng", customerGroupOptions],
+            [
               "category",
               "Danh mục",
               state.categories.map((c) => [c.id, c.name]),
@@ -718,7 +863,8 @@ export function ScenarioList() {
               "Hành động",
               [
                 ["notification", "Thông báo"],
-                ["offer", "Offer sản phẩm"],
+                ["offer", "Offer sản phẩm chính sách"],
+                ["service_offer", "Offer dịch vụ"],
                 ["task", "Giao việc"],
                 ["control", "Kiểm soát"],
               ],
@@ -734,6 +880,7 @@ export function ScenarioList() {
                 ),
               ],
             ],
+            ["service", "Nhóm dịch vụ được offer", serviceGroups],
             [
               "unit",
               "Đơn vị",
