@@ -1,7 +1,26 @@
+import { parseFormula, type FormulaToken } from "./formula";
+
 export type Value = number | string | boolean | null;
+export const changePeriods = {
+  previous: "Lần cập nhật trước",
+  "1d": "1 ngày trước",
+  "7d": "7 ngày trước",
+  "30d": "30 ngày trước",
+} as const;
+export type ChangePeriod = keyof typeof changePeriods;
+export type ChangeExpr = {
+  kind: "change";
+  id: string;
+  direction: "increase" | "decrease";
+  measure: "absolute" | "percent";
+  period: ChangePeriod;
+};
+export const historyKey = (id: string, period: ChangePeriod) =>
+  `history.${period}.${id}`;
 export type Expr =
   | { kind: "metric"; id: string }
   | { kind: "literal"; value: Value; unit: string }
+  | ChangeExpr
   | { kind: "math"; op: string; left: Expr; right: Expr };
 export type Condition =
   | { id: string; kind: "group"; op: "all" | "any"; children: Condition[] }
@@ -69,6 +88,8 @@ export type Config = {
   tags: string[];
   scope: "customer" | "account";
   condition: Condition;
+  conditionMode?: "basic" | "advanced";
+  conditionFormula?: FormulaToken[];
   mode: "event" | "schedule";
   events: string[];
   minAmount: number;
@@ -510,6 +531,8 @@ export function newConfig(now = NOW): Config {
   };
 }
 export function exprLabel(e: Expr): string {
+  if (e.kind === "change")
+    return `${metrics.find((m) => m.id === e.id)?.label || e.id} ${e.direction === "increase" ? "tăng" : "giảm"}${e.measure === "percent" ? " (%)" : ""} so với ${changePeriods[e.period].toLowerCase()}`;
   if (e.kind === "metric")
     return metrics.find((m) => m.id === e.id)?.label || e.id;
   if (e.kind === "literal") return String(money(e.value));
@@ -518,6 +541,14 @@ export function exprLabel(e: Expr): string {
     : `(${exprLabel(e.left)} ${{ add: "+", sub: "−", mul: "×", div: "÷", ratio: "÷" }[e.op] || e.op} ${exprLabel(e.right)})${e.op === "ratio" ? " × 100%" : ""}`;
 }
 export function describe(c: Condition): string {
+  if (c.kind === "rule" && c.left.kind === "change") {
+    const change = c.left;
+    const unit =
+      change.measure === "percent"
+        ? "%"
+        : metrics.find((m) => m.id === change.id)?.unit;
+    return `${exprLabel({ kind: "metric", id: change.id })} ${change.direction === "increase" ? "tăng" : "giảm"} ${opSymbols[c.op]} ${exprLabel(c.right)}${c.extra ? ` đến ${exprLabel(c.extra)}` : ""} ${unit === "PERCENT" ? "điểm %" : unit === "NONE" || unit === "COUNT" ? "" : unit} so với ${changePeriods[change.period].toLowerCase()}`;
+  }
   return c.kind === "group"
     ? `(${c.children.map(describe).join(c.op === "all" ? " VÀ " : " HOẶC ")})`
     : `${exprLabel(c.left)} ${opSymbols[c.op]} ${["exists", "missing"].includes(c.op) ? "" : exprLabel(c.right)}${c.extra ? " đến " + exprLabel(c.extra) : ""}`;
@@ -533,6 +564,45 @@ export function evalExpr(
       value: values[e.id] ?? null,
       unit: metrics.find((m) => m.id === e.id)?.unit || "NONE",
     };
+  if (e.kind === "change") {
+    const metric = metrics.find((m) => m.id === e.id);
+    const unit = e.measure === "percent" ? "PERCENT" : metric?.unit || "NONE";
+    const current = values[e.id],
+      baseline = values[historyKey(e.id, e.period)];
+    if (metric?.type !== "number")
+      return {
+        value: null,
+        unit,
+        reason: "Chỉ đại lượng dạng số mới có điều kiện biến động",
+      };
+    if (typeof current !== "number" || !Number.isFinite(current))
+      return {
+        value: null,
+        unit,
+        reason: `${metric.label}: thiếu giá trị hiện tại`,
+      };
+    if (typeof baseline !== "number" || !Number.isFinite(baseline))
+      return {
+        value: null,
+        unit,
+        reason: `${metric.label}: thiếu giá trị tại ${changePeriods[e.period].toLowerCase()}`,
+      };
+    if (e.measure === "percent" && baseline === 0)
+      return {
+        value: null,
+        unit,
+        reason: `${metric.label}: giá trị gốc bằng 0, không thể tính biến động %`,
+      };
+    const delta =
+      e.direction === "increase" ? current - baseline : baseline - current;
+    const value =
+      e.measure === "percent" ? (delta / Math.abs(baseline)) * 100 : delta;
+    return {
+      value: Number.isFinite(value) ? value : null,
+      unit,
+      reason: `${metric.label}: hiện tại ${money(current)}, ${changePeriods[e.period].toLowerCase()} ${money(baseline)}; ${e.direction === "increase" ? "mức tăng" : "mức giảm"} ${money(value)} ${unit === "PERCENT" ? "%" : unit}`,
+    };
+  }
   const a = evalExpr(e.left, values, now),
     b = evalExpr(e.right, values, now);
   if (a.value === null)
@@ -632,6 +702,11 @@ export function evaluate(
       verdict: "unknown",
       reason: `${exprLabel(c.left)}: sai kiểu hoặc đơn vị`,
     };
+  if (c.left.kind === "change" && typeof a.value === "number" && a.value <= 0)
+    return {
+      verdict: "no_match",
+      reason: `${a.reason}. Giá trị không ${c.left.direction === "increase" ? "tăng" : "giảm"} so với mốc so sánh.`,
+    };
   let ok = false;
   let av = a.value as string | number,
     bv = b.value as string | number;
@@ -673,7 +748,7 @@ export function evaluate(
                 : av < bv;
   return {
     verdict: ok ? "match" : "no_match",
-    reason: `${exprLabel(c.left)} = ${money(a.value)}; yêu cầu ${opSymbols[c.op]} ${money(b.value)}`,
+    reason: `${a.reason || `${exprLabel(c.left)} = ${money(a.value)}`}; yêu cầu ${opSymbols[c.op]} ${money(b.value)}${c.extra ? ` đến ${exprLabel(c.extra)}` : ""}`,
   };
 }
 export function subjects(state: State, scope: Config["scope"]): Customer[] {
@@ -698,6 +773,34 @@ export function subjects(state: State, scope: Config["scope"]): Customer[] {
             ]
           : []),
       ]);
+}
+export function snapshotValues(
+  condition: Condition,
+  values: Record<string, Value>,
+): Record<string, Value> {
+  const requiredHistory = new Set<string>();
+  function expression(expr: Expr) {
+    if (expr.kind === "change")
+      requiredHistory.add(historyKey(expr.id, expr.period));
+    else if (expr.kind === "math") {
+      expression(expr.left);
+      expression(expr.right);
+    }
+  }
+  function visit(node: Condition) {
+    if (node.kind === "group") node.children.forEach(visit);
+    else {
+      expression(node.left);
+      expression(node.right);
+      if (node.extra) expression(node.extra);
+    }
+  }
+  visit(condition);
+  return Object.fromEntries(
+    Object.entries(values).filter(
+      ([key]) => !key.startsWith("history.") || requiredHistory.has(key),
+    ),
+  );
 }
 export function status(s: Scenario, now: string) {
   const c = s.versions.at(-1)?.config;
@@ -831,15 +934,33 @@ export function scheduleRuns(c: Config, after: string, count = 5) {
         : "",
   };
 }
-export function validateCondition(c: Condition, depth = 1): string[] {
+export function validateCondition(c: Condition): string[] {
   if (c.kind === "group")
     return [
-      ...(depth > 3 ? ["Tối đa 3 cấp nhóm"] : []),
       ...(!c.children.length ? ["Thêm ít nhất một điều kiện"] : []),
-      ...c.children.flatMap((x) =>
-        validateCondition(x, x.kind === "group" ? depth + 1 : depth),
-      ),
+      ...c.children.flatMap((x) => validateCondition(x)),
     ];
+  if (c.left.kind === "change") {
+    if (!["gte", "gt", "lte", "lt", "eq", "between"].includes(c.op))
+      return ["Chọn phép so sánh mức biến động hợp lệ"];
+    if (
+      c.right.kind !== "literal" ||
+      typeof c.right.value !== "number" ||
+      !Number.isFinite(c.right.value) ||
+      c.right.value < 0
+    )
+      return ["Ngưỡng biến động phải là số không âm"];
+    if (
+      c.op === "between" &&
+      (!c.extra ||
+        c.extra.kind !== "literal" ||
+        typeof c.extra.value !== "number" ||
+        !Number.isFinite(c.extra.value) ||
+        c.extra.value < c.right.value ||
+        c.extra.unit !== c.right.unit)
+    )
+      return ["Ngưỡng trên phải cùng đơn vị và lớn hơn hoặc bằng ngưỡng dưới"];
+  }
   const sample = Object.fromEntries(
     metrics.map((m) => [
       m.id,
@@ -852,6 +973,9 @@ export function validateCondition(c: Condition, depth = 1): string[] {
             : "Priority",
     ]),
   );
+  for (const metric of metrics.filter((m) => m.type === "number"))
+    for (const period of Object.keys(changePeriods) as ChangePeriod[])
+      sample[historyKey(metric.id, period)] = 2;
   const r = evaluate(c, sample);
   return r.verdict === "unknown" ? [r.reason] : [];
 }
@@ -866,7 +990,13 @@ export function validate(c: Config, step?: number): string[] {
     if (!c.category || !c.owner)
       errors.push("Chọn danh mục và người phụ trách");
   }
-  if (check(1)) errors.push(...validateCondition(c.condition));
+  if (check(1)) {
+    const formula = c.conditionFormula
+      ? parseFormula(c.conditionFormula)
+      : undefined;
+    if (formula?.error) errors.push(`Công thức điều kiện: ${formula.error}`);
+    else errors.push(...validateCondition(formula?.condition ?? c.condition));
+  }
   if (check(2)) {
     if (c.mode === "event" && !c.events.length)
       errors.push("Chọn ít nhất một sự kiện");
@@ -943,6 +1073,8 @@ export function compile(c: Config, versionId: string, at: string): Plan {
   const errors = validate(c);
   if (errors.length) throw new Error(errors.join(" · "));
   const config = copy(c);
+  if (config.conditionFormula)
+    config.condition = parseFormula(config.conditionFormula).condition!;
   if (config.mode === "event") config.schedule = newConfig(at).schedule;
   else config.events = [];
   const nodes = [
@@ -1099,7 +1231,7 @@ export function simulate(
       customerId: realId,
       name: customer.name,
       ...result,
-      values: copy(customer.values),
+      values: snapshotValues(c.condition, customer.values),
     };
     if (c.mode === "event" && amount < c.minAmount) {
       o.verdict = "no_match";

@@ -73,6 +73,14 @@ Giá trị null, stale quá `maxAgeMinutes`, đơn vị sai hoặc chia 0 trả 
 
 ## Thư viện đại lượng
 
+### Biến động giá trị trong mockup
+
+Biểu thức `change` chứa `id` đại lượng số, `direction` (`increase`/`decrease`), `measure` (`absolute`/`percent`) và `period` (`previous`, `1d`, `7d`, `30d`). Dữ liệu tại mốc so sánh nằm trong `values[history.<period>.<metricId>]`. Đây là các snapshot giả lập cố định tại mốc demo, chưa truy vấn chuỗi thời gian thực. Bản lưu cũ được bổ sung snapshot mẫu còn thiếu; không ghi đè giá trị đã có, kể cả null.
+
+Mức tăng = hiện tại − giá trị gốc; mức giảm = giá trị gốc − hiện tại. Số tuyệt đối giữ đơn vị đại lượng (đại lượng PERCENT dùng điểm phần trăm); phần trăm = chênh lệch theo chiều đã chọn / trị tuyệt đối giá trị gốc × 100. Thiếu một trong hai giá trị hoặc giá trị gốc bằng 0 khi tính % trả `unknown`. Không tăng/giảm theo chiều đã chọn trả `no_match`, kể cả với điều kiện nhỏ hơn một ngưỡng dương. So sánh theo số tuyệt đối vẫn dùng được khi giá trị gốc bằng 0.
+
+Ngưỡng phải là số không âm; điều kiện trong khoảng yêu cầu ngưỡng trên ≥ ngưỡng dưới, cùng đơn vị. Lịch sử chạy chụp giá trị hiện tại và những snapshot quá khứ được công thức sử dụng, bảo đảm xem lại đúng dữ liệu đánh giá mà không nhân bản toàn bộ lịch sử mẫu.
+
 Mỗi metric có id, label, group, dataType, unit, scopes, definition, sourceLabel, maxAgeMinutes, aggregation và availability. Không cộng các thành phần tài sản có khả năng trùng nhau nếu chưa có định nghĩa; tổng và NAV dùng metric nguồn được mô tả riêng. Không đồng nhất tiền mặt và tiền có thể sử dụng.
 
 Danh sách dưới là tối thiểu cho mockup. Các metric số thuộc customer/account được tạo bằng resolver rõ ràng; mọi mục xuất hiện có thể chọn phải có dữ liệu hoặc tình trạng thiếu dữ liệu có chủ đích.

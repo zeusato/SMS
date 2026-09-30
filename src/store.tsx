@@ -20,7 +20,7 @@ import {
   activationStatus,
   newConfig,
 } from "./domain";
-import { seed } from "./seed";
+import { seed, withDemoHistory } from "./seed";
 import { transaction } from "./transaction";
 const KEY = "sms.mock.v1";
 type Store = {
@@ -63,7 +63,9 @@ function load() {
         error:
           "Dữ liệu lưu không tương thích. Xuất bản lưu cũ trước khi đặt lại; thay đổi sẽ chưa được lưu.",
       };
-    return { state: parsed as State, error: "" };
+    const state = parsed as State;
+    state.customers = state.customers.map(withDemoHistory);
+    return { state, error: "" };
   } catch {
     return {
       state: seed(),

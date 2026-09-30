@@ -108,11 +108,15 @@ Không đặt cấu hình thời gian hay quyền thực thi ở màn này. Side
 
 Ba vùng ở desktop: thư viện đại lượng 260 px, vùng xây công thức co giãn, panel diễn giải/xem thử 320 px. Cấp đối tượng nằm đầu vùng công thức, mặc định Khách hàng. Mockup cho chọn Khách hàng hoặc Tài khoản; dữ liệu cấp khoản đầu tư là khả năng mở rộng chưa bật và có giải thích.
 
-Thư viện chia nhóm tài sản cổ phiếu, phái sinh, nợ, trái phiếu, CCQ, MM, hồ sơ và hành vi. Một đại lượng có tên, đơn vị, cấp đối tượng, mô tả và mốc dữ liệu. Người dùng thêm bằng click; kéo thả chỉ là cải tiến nếu còn thời gian, không là cách duy nhất.
+Thư viện chia nhóm tài sản cổ phiếu, phái sinh, nợ, trái phiếu, CCQ, MM, hồ sơ và hành vi. Một đại lượng có tên, đơn vị, cấp đối tượng, mô tả và mốc dữ liệu. Người dùng thêm bằng click; mode nâng cao hỗ trợ kéo thả vào vị trí chèn trong công thức.
 
 Một điều kiện gồm vế trái, toán tử, vế phải. Vế trái/phải có thể là đại lượng, hằng số hoặc phép tính. Loại số có >, >=, <, <=, =, != và trong khoảng; ngày có trước/sau/trong khoảng và số ngày kể từ; danh sách có thuộc/không thuộc; boolean có đúng/sai; mọi loại có đã có/chưa có dữ liệu. Phép tính hỗ trợ +, -, ×, ÷ với kiểm tra đơn vị.
 
-Nhóm điều kiện có Tất cả/Ít nhất một; thêm nhóm lồng nhau, xóa hoặc nhân bản nhánh. Mockup hỗ trợ sâu tối đa 3 nhóm, báo rõ giới hạn. Nhóm rỗng không hợp lệ. Kiểm tra chi tiết về kiểu, đơn vị, chia không và dữ liệu thiếu theo `05`.
+Mode cơ bản dùng nhóm Tất cả/Ít nhất một, cho thêm nhóm lồng nhau, xóa hoặc nhân bản nhánh. Mode nâng cao biểu diễn mỗi điều kiện bằng một khối thu gọn, bấm để sửa trong cửa sổ phụ; cho chèn VÀ, HOẶC, dấu mở/đóng ngoặc tại vị trí chọn và kéo đổi vị trí. Ngoặc được tính trước, sau đó VÀ, rồi HOẶC. Hai mode dùng cùng cây điều kiện, chuyển qua lại giữ nguyên logic và không còn giới hạn ba cấp nhóm.
+
+Công thức thiếu điều kiện, thiếu/thừa ngoặc hoặc thiếu toán tử được đánh dấu tại vị trí lỗi. Bản nháp giữ cả công thức đang ghép dở qua tải lại trang; không cho xem thử, chuyển về cơ bản hoặc đi tiếp bằng kết quả cũ khi công thức chưa hợp lệ. Có thể khôi phục công thức hợp lệ gần nhất. Nhóm rỗng không hợp lệ. Kiểm tra chi tiết về kiểu, đơn vị, chia không và dữ liệu thiếu theo `05`.
+
+Đại lượng dạng số hỗ trợ loại điều kiện Biến động tăng/giảm trong cả hai mode. Người dùng chọn chiều Tăng/Giảm, cách đo theo phần trăm hoặc số tuyệt đối, mốc so sánh (lần cập nhật trước, 1/7/30 ngày trước), phép so sánh và ngưỡng không âm. Khối thu gọn hiển thị cả chiều, ngưỡng và mốc so sánh. Chỉ thỏa khi giá trị thực sự chuyển động theo chiều đã chọn.
 
 Panel phải diễn giải tự động từ cây điều kiện, không nhập mô tả thứ hai. Nút Xem thử trả tổng đối tượng, thỏa, không thỏa và thiếu dữ liệu. Bấm một khách mở drawer giải thích từng nhánh bằng giá trị mẫu và thời điểm. Chỉ số đổi sau khi chạy lại; thay công thức đánh dấu Kết quả cần cập nhật. Không bịa số khách để trang đẹp.
 

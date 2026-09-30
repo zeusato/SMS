@@ -26,7 +26,17 @@ import {
   money,
   defaultCondition,
   normalize,
+  validateCondition,
+  changePeriods,
+  type ChangePeriod,
 } from "./domain";
+import { FormulaEditor, metricDragType } from "./formula-editor";
+import {
+  conditionTokens,
+  parseFormula,
+  type FormulaToken,
+  type RuleCondition,
+} from "./formula";
 import {
   Button,
   Input,
@@ -53,43 +63,119 @@ export function Expression({
       className={`expression ${expr.kind === "math" ? "expression-math" : ""}`}
     >
       <Select
-        aria-label={`${label} loại giá trị`}
+        className={label === "Vế trái" ? "condition-kind" : undefined}
+        aria-label={
+          label === "Vế trái" ? "Loại điều kiện" : `${label} loại giá trị`
+        }
         value={expr.kind}
         onChange={(_, d) =>
           onChange(
             d.value === "metric"
-              ? { kind: "metric", id: "equity.availableCash" }
-              : d.value === "literal"
-                ? { kind: "literal", value: 0, unit: "VND" }
-                : {
-                    kind: "math",
-                    op: "sub",
-                    left: { kind: "metric", id: "equity.cash" },
-                    right: { kind: "metric", id: "debt.principal" },
-                  },
+              ? {
+                  kind: "metric",
+                  id: expr.kind === "change" ? expr.id : "equity.availableCash",
+                }
+              : d.value === "change"
+                ? {
+                    kind: "change",
+                    id:
+                      (expr.kind === "metric" || expr.kind === "change") &&
+                      metrics.some(
+                        (m) => m.id === expr.id && m.type === "number",
+                      )
+                        ? expr.id
+                        : "equity.cash",
+                    direction: "increase",
+                    measure: "percent",
+                    period: "1d",
+                  }
+                : d.value === "literal"
+                  ? { kind: "literal", value: 0, unit: "VND" }
+                  : {
+                      kind: "math",
+                      op: "sub",
+                      left: { kind: "metric", id: "equity.cash" },
+                      right: { kind: "metric", id: "debt.principal" },
+                    },
           )
         }
       >
-        <option value="metric">Đại lượng</option>
+        <option value="metric">
+          {label === "Vế trái" ? "Giá trị hiện tại" : "Đại lượng"}
+        </option>
+        {(label === "Vế trái" || expr.kind === "change") && (
+          <option value="change">Biến động tăng/giảm</option>
+        )}
         <option value="literal">Giá trị</option>
         {level < 2 && <option value="math">Phép tính</option>}
       </Select>
-      {expr.kind === "metric" ? (
-        <Dropdown
-          className="metric-picker"
-          aria-label={label}
-          value={metrics.find((m) => m.id === expr.id)?.label || expr.id}
-          selectedOptions={[expr.id]}
-          onOptionSelect={(_, d) =>
-            d.optionValue && onChange({ ...expr, id: d.optionValue })
-          }
-        >
-          {metrics.map((m) => (
-            <Option key={m.id} value={m.id} text={m.label}>
-              {m.label}
-            </Option>
-          ))}
-        </Dropdown>
+      {expr.kind === "metric" || expr.kind === "change" ? (
+        <>
+          <Dropdown
+            className="metric-picker"
+            aria-label={label}
+            value={metrics.find((m) => m.id === expr.id)?.label || expr.id}
+            selectedOptions={[expr.id]}
+            onOptionSelect={(_, d) =>
+              d.optionValue && onChange({ ...expr, id: d.optionValue })
+            }
+          >
+            {metrics
+              .filter((m) => expr.kind !== "change" || m.type === "number")
+              .map((m) => (
+                <Option key={m.id} value={m.id} text={m.label}>
+                  {m.label}
+                </Option>
+              ))}
+          </Dropdown>
+          {expr.kind === "change" && (
+            <div className="change-settings">
+              <Choice
+                label="Chiều biến động"
+                value={expr.direction}
+                onChange={(value) =>
+                  onChange({
+                    ...expr,
+                    direction: value as "increase" | "decrease",
+                  })
+                }
+                options={[
+                  ["increase", "Tăng"],
+                  ["decrease", "Giảm"],
+                ]}
+              />
+              <Choice
+                label="Cách đo biến động"
+                value={expr.measure}
+                onChange={(value) =>
+                  onChange({
+                    ...expr,
+                    measure: value as "absolute" | "percent",
+                  })
+                }
+                options={[
+                  ["percent", "Theo phần trăm (%)"],
+                  ["absolute", "Theo số tuyệt đối"],
+                ]}
+              />
+              <Choice
+                label="Mốc so sánh"
+                value={expr.period}
+                onChange={(value) =>
+                  onChange({ ...expr, period: value as ChangePeriod })
+                }
+                options={Object.entries(changePeriods)}
+              />
+              <p className="hint">
+                {expr.measure === "percent"
+                  ? "Tỷ lệ = mức chênh lệch theo chiều đã chọn / trị tuyệt đối giá trị gốc × 100%. Giá trị gốc bằng 0 hoặc thiếu dữ liệu sẽ được báo riêng."
+                  : "So sánh mức chênh lệch theo chiều đã chọn, cùng đơn vị với đại lượng. Đại lượng tỷ lệ được tính bằng điểm phần trăm."}{" "}
+                Chỉ thỏa khi giá trị thực sự{" "}
+                {expr.direction === "increase" ? "tăng" : "giảm"}.
+              </p>
+            </div>
+          )}
+        </>
       ) : expr.kind === "literal" ? (
         <>
           <Input
@@ -157,6 +243,12 @@ export function Expression({
       )}
     </div>
   );
+}
+function duplicateCondition(node: Condition): Condition {
+  const cloned = { ...copy(node), id: uid(node.kind === "group" ? "g" : "c") };
+  return cloned.kind === "group"
+    ? { ...cloned, children: cloned.children.map(duplicateCondition) }
+    : cloned;
 }
 function ConditionTree({
   node,
@@ -249,25 +341,23 @@ function ConditionTree({
           >
             Điều kiện
           </Button>
-          {depth < 3 && (
-            <Button
-              size="small"
-              appearance="subtle"
-              icon={<BranchFork20Regular />}
-              onClick={() => {
-                const g: Condition = {
-                  id: uid("g"),
-                  kind: "group",
-                  op: "any",
-                  children: [rule()],
-                };
-                onChange({ ...node, children: [...node.children, g] });
-                onSelect(g.id);
-              }}
-            >
-              Nhóm điều kiện
-            </Button>
-          )}
+          <Button
+            size="small"
+            appearance="subtle"
+            icon={<BranchFork20Regular />}
+            onClick={() => {
+              const g: Condition = {
+                id: uid("g"),
+                kind: "group",
+                op: "any",
+                children: [rule()],
+              };
+              onChange({ ...node, children: [...node.children, g] });
+              onSelect(g.id);
+            }}
+          >
+            Nhóm điều kiện
+          </Button>
           {onRemove && (
             <Button
               size="small"
@@ -278,7 +368,7 @@ function ConditionTree({
                   ...node,
                   children: [
                     ...node.children,
-                    ...node.children.map((c) => ({ ...copy(c), id: uid("c") })),
+                    ...node.children.map(duplicateCondition),
                   ],
                 })
               }
@@ -290,7 +380,7 @@ function ConditionTree({
       </div>
     );
   const m =
-    node.left.kind === "metric"
+    node.left.kind === "metric" || node.left.kind === "change"
       ? metrics.find((m) => m.id === (node.left as { id: string }).id)
       : undefined;
   return (
@@ -302,22 +392,57 @@ function ConditionTree({
             {m?.unit === "VND" ? "· VND" : m?.unit === "DAYS" ? "· Ngày" : ""}
           </small>
         </span>
-        <Button
-          size="small"
-          appearance="subtle"
-          icon={<Delete20Regular />}
-          aria-label={`Xóa điều kiện ${exprLabel(node.left)}`}
-          onClick={onRemove}
-        />
+        {onRemove && (
+          <Button
+            size="small"
+            appearance="subtle"
+            icon={<Delete20Regular />}
+            aria-label={`Xóa điều kiện ${exprLabel(node.left)}`}
+            onClick={onRemove}
+          />
+        )}
       </div>
       <Expression
         expr={node.left}
         label="Vế trái"
         onChange={(left) => {
           const metric =
-            left.kind === "metric"
+            left.kind === "metric" || left.kind === "change"
               ? metrics.find((m) => m.id === left.id)
               : undefined;
+          if (left.kind === "change") {
+            const unit =
+              left.measure === "percent" ? "PERCENT" : metric?.unit || "NONE";
+            const preserve =
+              node.left.kind === "change" &&
+              node.left.id === left.id &&
+              node.left.measure === left.measure;
+            onChange({
+              ...node,
+              left,
+              op: ["gte", "gt", "lte", "lt", "eq", "between"].includes(node.op)
+                ? node.op
+                : "gte",
+              right: preserve
+                ? node.right
+                : {
+                    kind: "literal",
+                    value: left.measure === "percent" ? 10 : 0,
+                    unit,
+                  },
+              extra:
+                node.op === "between"
+                  ? preserve
+                    ? node.extra
+                    : {
+                        kind: "literal",
+                        value: left.measure === "percent" ? 20 : 500000000,
+                        unit,
+                      }
+                  : undefined,
+            });
+            return;
+          }
           onChange({
             ...node,
             left,
@@ -350,21 +475,63 @@ function ConditionTree({
                 d.value === "between"
                   ? {
                       kind: "literal",
-                      value: 500000000,
-                      unit: m?.unit || "VND",
+                      value:
+                        node.left.kind === "change" &&
+                        node.left.measure === "percent"
+                          ? 20
+                          : 500000000,
+                      unit:
+                        node.left.kind === "change" &&
+                        node.left.measure === "percent"
+                          ? "PERCENT"
+                          : m?.unit || "VND",
                     }
                   : undefined,
             })
           }
         >
-          {Object.entries(ops).map(([id, t]) => (
-            <option key={id} value={id}>
-              {t}
-            </option>
-          ))}
+          {Object.entries(ops)
+            .filter(
+              ([id]) =>
+                node.left.kind !== "change" ||
+                ["gte", "gt", "lte", "lt", "eq", "between"].includes(id),
+            )
+            .map(([id, t]) => (
+              <option key={id} value={id}>
+                {t}
+              </option>
+            ))}
         </Select>
         {!["exists", "missing"].includes(node.op) &&
-          (m?.type === "boolean" && node.right.kind === "literal" ? (
+          (node.left.kind === "change" && node.right.kind === "literal" ? (
+            <Input
+              aria-label="Ngưỡng biến động"
+              type="number"
+              min={0}
+              value={node.right.value === null ? "" : String(node.right.value)}
+              contentAfter={
+                node.left.measure === "percent"
+                  ? "%"
+                  : m?.unit === "PERCENT"
+                    ? "điểm %"
+                    : m?.unit
+              }
+              onChange={(_, data) =>
+                onChange({
+                  ...node,
+                  right: {
+                    kind: "literal",
+                    value: data.value === "" ? null : Number(data.value),
+                    unit:
+                      node.left.kind === "change" &&
+                      node.left.measure === "percent"
+                        ? "PERCENT"
+                        : m?.unit || "NONE",
+                  },
+                })
+              }
+            />
+          ) : m?.type === "boolean" && node.right.kind === "literal" ? (
             <Select
               aria-label="Giá trị điều kiện"
               value={String(node.right.value)}
@@ -390,13 +557,42 @@ function ConditionTree({
             />
           ))}
       </div>
-      {node.extra && (
-        <Expression
-          expr={node.extra}
-          label="Ngưỡng trên"
-          onChange={(extra) => onChange({ ...node, extra })}
-        />
-      )}
+      {node.extra &&
+        (node.left.kind === "change" && node.extra.kind === "literal" ? (
+          <Input
+            aria-label="Ngưỡng trên"
+            type="number"
+            min={0}
+            value={node.extra.value === null ? "" : String(node.extra.value)}
+            contentAfter={
+              node.left.measure === "percent"
+                ? "%"
+                : m?.unit === "PERCENT"
+                  ? "điểm %"
+                  : m?.unit
+            }
+            onChange={(_, data) =>
+              onChange({
+                ...node,
+                extra: {
+                  kind: "literal",
+                  value: data.value === "" ? null : Number(data.value),
+                  unit:
+                    node.left.kind === "change" &&
+                    node.left.measure === "percent"
+                      ? "PERCENT"
+                      : m?.unit || "NONE",
+                },
+              })
+            }
+          />
+        ) : (
+          <Expression
+            expr={node.extra}
+            label="Ngưỡng trên"
+            onChange={(extra) => onChange({ ...node, extra })}
+          />
+        ))}
     </div>
   );
 }
@@ -440,6 +636,26 @@ export function Conditions({
   onChange: (v: Config) => void;
 }) {
   const { state } = useStore();
+  const advanced = config.conditionMode === "advanced";
+  const tokens = config.conditionFormula ?? conditionTokens(config.condition);
+  const formulaResult = parseFormula(tokens);
+  const formulaInvalid =
+    advanced &&
+    (!!formulaResult.error ||
+      !!(
+        formulaResult.condition &&
+        validateCondition(formulaResult.condition).length
+      ));
+  const pristineEmpty =
+    tokens.length === 0 &&
+    config.condition.kind === "group" &&
+    config.condition.children.length === 0;
+  const [cursor, setCursor] = useState(tokens.length);
+  const [editing, setEditing] = useState<{
+    condition: RuleCondition;
+    index: number;
+    isNew: boolean;
+  } | null>(null);
   const [search, setSearch] = useState(""),
     [group, setGroup] = useState("Cổ phiếu"),
     [selected, setSelected] = useState(config.condition.id);
@@ -465,13 +681,63 @@ export function Conditions({
       return { ...node, children: [...node.children, newNode] };
     return { ...node, children: node.children.map((c) => append(c, newNode)) };
   }
+  function updateFormula(next: FormulaToken[]) {
+    const parsed = parseFormula(next);
+    onChange({
+      ...config,
+      conditionMode: "advanced",
+      conditionFormula: next,
+      condition:
+        parsed.condition && !validateCondition(parsed.condition).length
+          ? parsed.condition
+          : config.condition,
+    });
+  }
+  function addMetric(id: string, position = cursor) {
+    const metric = metrics.find((m) => m.id === id);
+    if (!metric) return;
+    const added = rule(
+      id,
+      metric.type === "boolean"
+        ? true
+        : metric.type === "number"
+          ? 0
+          : metric.type === "date"
+            ? "2026-09-01T00:00:00+07:00"
+            : "Priority",
+    );
+    if (advanced && added.kind === "rule") {
+      setEditing({
+        condition: added,
+        index: Math.min(position, tokens.length),
+        isNew: true,
+      });
+    } else {
+      onChange({
+        ...config,
+        condition:
+          config.condition.kind === "group"
+            ? append(config.condition, added)
+            : {
+                id: uid("g"),
+                kind: "group",
+                op: "all",
+                children: [config.condition, added],
+              },
+      });
+    }
+  }
   const counts = (v: string) =>
     result?.filter((x) => x.verdict === v).length || 0;
   return (
     <div className="condition-workshop">
       <Panel
         title="Thư viện đại lượng"
-        sub={`${metrics.length} đại lượng · 8 nhóm`}
+        sub={
+          advanced
+            ? "Kéo vào công thức hoặc bấm để thêm"
+            : `${metrics.length} đại lượng · 8 nhóm`
+        }
         className="metric-library"
       >
         <Input
@@ -503,30 +769,12 @@ export function Conditions({
               <button
                 title={m.definition}
                 key={m.id}
-                onClick={() => {
-                  const added = rule(
-                    m.id,
-                    m.type === "boolean"
-                      ? true
-                      : m.type === "number"
-                        ? 0
-                        : m.type === "date"
-                          ? "2026-09-01T00:00:00+07:00"
-                          : "Priority",
-                  );
-                  onChange({
-                    ...config,
-                    condition:
-                      config.condition.kind === "group"
-                        ? append(config.condition, added)
-                        : {
-                            id: uid("g"),
-                            kind: "group",
-                            op: "all",
-                            children: [config.condition, added],
-                          },
-                  });
+                draggable={advanced}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(metricDragType, m.id);
+                  event.dataTransfer.effectAllowed = "copy";
                 }}
+                onClick={() => addMetric(m.id)}
               >
                 <span>
                   {m.label}
@@ -535,6 +783,10 @@ export function Conditions({
                 <Add20Regular />
               </button>
             ))}
+          {search &&
+            !metrics.some((m) =>
+              normalize(m.label).includes(normalize(search)),
+            ) && <p className="hint">Không tìm thấy đại lượng phù hợp.</p>}
         </div>
       </Panel>
       <div className="formula-panel">
@@ -555,26 +807,107 @@ export function Conditions({
             size="small"
             onClick={() => {
               const c = defaultCondition();
-              onChange({ ...config, condition: c });
+              const nextTokens = conditionTokens(c);
+              onChange({
+                ...config,
+                condition: c,
+                conditionFormula: advanced ? nextTokens : undefined,
+              });
               setSelected(c.id);
+              setCursor(nextTokens.length);
             }}
           >
             Dùng công thức trình diễn
           </Button>
         </div>
-        <ConditionTree
-          node={config.condition}
-          selected={selected}
-          onSelect={setSelected}
-          onChange={(condition) => onChange({ ...config, condition })}
-        />
-        <p className="hint">
-          Chọn một nhóm để thêm đại lượng vào đúng nhánh. Tối đa 3 cấp nhóm.
-        </p>
+        <div
+          className="condition-mode-switch"
+          role="group"
+          aria-label="Chế độ thiết lập điều kiện"
+        >
+          <Button
+            appearance={!advanced ? "primary" : "subtle"}
+            aria-pressed={!advanced}
+            disabled={!!formulaInvalid && !pristineEmpty}
+            title={
+              formulaInvalid
+                ? "Hoàn thiện công thức trước khi chuyển chế độ"
+                : undefined
+            }
+            onClick={() => {
+              onChange({
+                ...config,
+                conditionMode: "basic",
+                conditionFormula: undefined,
+              });
+              setSelected(config.condition.id);
+            }}
+          >
+            Cơ bản
+          </Button>
+          <Button
+            appearance={advanced ? "primary" : "subtle"}
+            aria-pressed={advanced}
+            onClick={() => {
+              if (advanced) return;
+              const next = conditionTokens(config.condition);
+              onChange({
+                ...config,
+                conditionMode: "advanced",
+                conditionFormula: next,
+              });
+              setCursor(next.length);
+            }}
+          >
+            Nâng cao
+          </Button>
+        </div>
+        {advanced ? (
+          <FormulaEditor
+            tokens={tokens}
+            cursor={cursor}
+            onCursor={setCursor}
+            onChange={updateFormula}
+            onAddMetric={addMetric}
+            onEdit={(index) => {
+              const token = tokens[index];
+              if (token.kind === "condition")
+                setEditing({
+                  condition: copy(token.condition),
+                  index,
+                  isNew: false,
+                });
+            }}
+            onRestore={() => {
+              const next = conditionTokens(config.condition);
+              updateFormula(next);
+              setCursor(next.length);
+            }}
+          />
+        ) : (
+          <>
+            <ConditionTree
+              node={config.condition}
+              selected={selected}
+              onSelect={setSelected}
+              onChange={(condition) => onChange({ ...config, condition })}
+            />
+            <p className="hint">
+              Chọn một nhóm để thêm đại lượng vào đúng nhánh. Dùng chế độ nâng
+              cao để lắp ghép bằng VÀ, HOẶC và dấu ngoặc.
+            </p>
+          </>
+        )}
       </div>
       <Panel title="Diễn giải & xem thử" className="preview-panel">
         <span className="eyebrow">ĐỐI TƯỢNG CẦN TÌM</span>
-        <p className="formula-prose">{describe(config.condition)}</p>
+        {formulaInvalid ? (
+          <Notice>
+            Hoàn thiện công thức bên cạnh để cập nhật diễn giải và xem thử.
+          </Notice>
+        ) : (
+          <p className="formula-prose">{describe(config.condition)}</p>
+        )}
         <div className="preview-divider" />
         <p className="hint">
           Dữ liệu mẫu ·{" "}
@@ -583,6 +916,7 @@ export function Conditions({
         <Button
           appearance="primary"
           icon={<Play20Regular />}
+          disabled={!!formulaInvalid}
           onClick={() => {
             setResult(
               subjects(state, config.scope).map((c) => ({
@@ -601,7 +935,7 @@ export function Conditions({
         >
           Xem thử đối tượng
         </Button>
-        {result && (
+        {result && !formulaInvalid && (
           <>
             {snapshot !==
               JSON.stringify({
@@ -688,6 +1022,61 @@ export function Conditions({
           </>
         )}
       </Panel>
+      <Modal
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        title={editing?.isNew ? "Thiết lập điều kiện" : "Chỉnh sửa điều kiện"}
+        actions={
+          <>
+            <Button onClick={() => setEditing(null)}>Hủy</Button>
+            <Button
+              appearance="primary"
+              disabled={
+                !editing || !!validateCondition(editing.condition).length
+              }
+              onClick={() => {
+                if (!editing || validateCondition(editing.condition).length)
+                  return;
+                const next = [...tokens];
+                const token: FormulaToken = {
+                  id: editing.condition.id,
+                  kind: "condition",
+                  condition: editing.condition,
+                };
+                next.splice(editing.index, editing.isNew ? 0 : 1, token);
+                updateFormula(next);
+                setCursor(editing.index + 1);
+                setEditing(null);
+              }}
+            >
+              {editing?.isNew ? "Thêm vào công thức" : "Cập nhật điều kiện"}
+            </Button>
+          </>
+        }
+      >
+        {editing && (
+          <div className="formula-condition-dialog">
+            <p className="hint">
+              Thiết lập phép so sánh cho đại lượng này. Điều kiện sẽ xuất hiện
+              dưới dạng một khối thu gọn trong công thức.
+            </p>
+            <ConditionTree
+              node={editing.condition}
+              selected=""
+              onSelect={() => {}}
+              onChange={(condition) => {
+                if (condition.kind === "rule")
+                  setEditing({ ...editing, condition });
+              }}
+            />
+            {!!validateCondition(editing.condition).length && (
+              <Notice error>
+                {validateCondition(editing.condition).join(". ")}
+              </Notice>
+            )}
+          </div>
+        )}
+      </Modal>
       <Modal
         open={!!customer}
         onClose={() => setCustomer(null)}

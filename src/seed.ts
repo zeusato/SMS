@@ -14,7 +14,40 @@ import {
   addDays,
   makeBatch,
   withSeedIds,
+  historyKey,
+  changePeriods,
+  type ChangePeriod,
 } from "./domain";
+// Deterministic demo snapshots. Preserve supplied history, including explicit nulls.
+export function withDemoHistory(customer: Customer, index: number): Customer {
+  const values = { ...customer.values };
+  for (const [periodIndex, period] of (
+    Object.keys(changePeriods) as ChangePeriod[]
+  ).entries()) {
+    for (const [metricIndex, metric] of metrics
+      .filter((m) => m.type === "number")
+      .entries()) {
+      const key = historyKey(metric.id, period);
+      if (key in values) continue;
+      const current = values[metric.id];
+      const variation =
+        (((index + metricIndex + periodIndex * 3) % 9) - 4) / 10;
+      values[key] =
+        typeof current !== "number" || (index + 1) % 23 === 0
+          ? null
+          : (index + 1) % 19 === 0
+            ? 0
+            : current === 0
+              ? index % 2
+                ? metric.unit === "VND"
+                  ? 50000000
+                  : 10
+                : 0
+              : Math.round((current / (1 + variation)) * 100) / 100;
+    }
+  }
+  return { ...customer, values };
+}
 export function seed(): State {
   return withSeedIds(buildSeed);
 }
@@ -73,7 +106,7 @@ function buildSeed(): State {
       values,
       products: [`P${String((i % 12) + 1).padStart(2, "0")}`],
     };
-  });
+  }).map(withDemoHistory);
   const names = [
     "Mở tài khoản thành công",
     "Cập nhật quyền và cổ tức",
